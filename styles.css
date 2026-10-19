@@ -66,6 +66,13 @@ button { font-family: inherit; }
   min-height: 44px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--cream);
   color: var(--ink); font-weight: 700; font-size: 15px; cursor: pointer;
 }
+.locate-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: 4px;
+  border: 0; border-radius: 999px; background: transparent; color: var(--cream); cursor: pointer;
+}
+.locate-btn:hover { background: rgba(244, 237, 228, .1); }
+.locate-btn.busy svg { animation: spin 1.2s linear infinite; }
+.chip-geo { color: #FFE2B0; }
 .dropdown {
   position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30; max-height: 420px; overflow-y: auto;
   background: #16122C; border: 1px solid rgba(244, 237, 228, .2); border-radius: 12px; padding: 6px;
@@ -231,7 +238,7 @@ button { font-family: inherit; }
 .tl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 #tlPlay .ic-pause, #tlPlay[aria-pressed="true"] .ic-play { display: none; }
 #tlPlay[aria-pressed="true"] .ic-pause { display: inline; }
-.scrub { position: relative; }
+.scrub { position: relative; padding: 8px 0; }
 .scrub:focus-within { outline: 2px solid var(--gold); outline-offset: 10px; border-radius: 2px; }
 .tl-bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; }
 .tl-bars i { flex: 1 1 0; min-width: 0; border-radius: 1px; opacity: .5; transition: opacity .2s, height .6s; }
@@ -243,9 +250,15 @@ button { font-family: inherit; }
 }
 .tl-head { position: absolute; top: -8px; bottom: -8px; width: 2px; transform: translateX(-1px); background: #FFF4E2; box-shadow: 0 0 14px rgba(255,244,226,.8); pointer-events: none; }
 .tl-head span { position: absolute; top: -6px; left: -6px; width: 14px; height: 14px; border-radius: 50%; background: #FFF4E2; }
+/* 拖动由 .scrub 上的 pointer 事件处理（touch-action: pan-y 让竖向仍可滚页面）；
+   range 只保留给键盘与读屏，不接收指针 */
+.scrub { touch-action: pan-y; cursor: ew-resize; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.scrub.dragging .tl-head { box-shadow: 0 0 22px rgba(255,244,226,1); }
+.scrub.dragging .tl-head span { transform: scale(1.4); }
+.tl-head span { transition: transform .15s; }
 .tl-input {
   position: absolute; left: 0; right: 0; top: 0; width: 100%; height: 170px; margin: 0;
-  -webkit-appearance: none; appearance: none; background: transparent; opacity: 0; cursor: ew-resize;
+  -webkit-appearance: none; appearance: none; background: transparent; opacity: 0; pointer-events: none;
 }
 .tl-ticks { position: relative; height: 18px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
 .tl-ticks span { position: absolute; }
@@ -370,6 +383,7 @@ button { font-family: inherit; }
 @keyframes twinkle { 0%, 100% { opacity: .15; } 50% { opacity: .9; } }
 @keyframes marquee { to { transform: translateX(-50%); } }
 @keyframes termpulse { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes sheen { from { background-position: 100% 0; } to { background-position: 0 0; } }
 
 /* 减弱动态：只停闪烁类效果，漂移与下沉放慢而不停 */

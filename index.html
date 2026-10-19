@@ -71,14 +71,17 @@
   <nav class="topnav" aria-label="主导航">
     <a href="#calendar">01 霞历</a>
     <a href="#timeline">02 天色</a>
-    <a href="#profile">03 剖面</a>
-    <a href="#board">04 霞榜</a>
+    <a href="#board">03 霞榜</a>
+    <a href="#profile">04 剖面</a>
     <a href="#science">05 原理</a>
   </nav>
   <form class="search" role="search" onsubmit="return false">
     <label for="searchInput" class="sr">搜索城市</label>
     <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
     <input id="searchInput" type="text" placeholder="去哪看霞？南阳 / 京都 / 巴黎" autocomplete="off">
+    <button id="locateBtn" class="locate-btn" type="button" aria-label="定位到我所在的位置" title="定位到我所在的位置">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
+    </button>
     <button id="searchBtn" type="submit">查询</button>
     <div id="searchResults" class="dropdown" hidden></div>
   </form>
@@ -115,6 +118,7 @@
               <span id="favLabel">收藏此地</span>
             </button>
             <span class="chip" id="heroEvent">正在查询</span>
+            <span class="chip chip-geo" id="geoStatus" role="status" hidden></span>
           </div>
           <div class="fav-bar" id="favBar"></div>
         </div>
@@ -204,24 +208,11 @@
     <div class="tl-legend" id="tlLegend"></div>
   </section>
 
-  <!-- ================= 03 大气剖面 ================= -->
-  <section class="sec sec-profile" id="profile">
-    <div class="sec-head">
-      <div>
-        <h2 class="kicker">03 / 大气剖面</h2>
-        <div class="display">从 12 公里高空<br>一路看到地面</div>
-      </div>
-      <p class="sec-lede">十一项因素按它们在大气里的真实高度排列。每一层的条长是该项得分，右侧是权重；缺数据的层显示「无数据」并从加权中排除。当前展示的是 <span class="hl" id="profileLabel">—</span>。</p>
-    </div>
-    <div class="layers" id="layers" role="table" aria-label="十一项因素评分"></div>
-    <div class="profile-meta" id="profileMeta"></div>
-  </section>
-
-  <!-- ================= 04 霞榜 ================= -->
+  <!-- ================= 03 霞榜 ================= -->
   <section class="sec sec-board" id="board">
     <div class="sec-head">
       <div>
-        <h2 class="kicker">04 / 霞榜 · 追着晨昏线跑</h2>
+        <h2 class="kicker">03 / 霞榜 · 追着晨昏线跑</h2>
         <div class="display">此刻，地球哪里<br>正在<span class="ember">烧</span>？</div>
       </div>
       <div class="board-actions">
@@ -241,6 +232,19 @@
     <div class="ticker" id="ticker" aria-hidden="true" hidden><div class="ticker-inner" id="tickerInner"></div></div>
     <ol class="rank" id="boardList"></ol>
     <p class="note" id="boardNote">全球 36 城 + 中国 34 城，同一算法批量计算下一场晚霞。按需加载（约 350 次 API 调用），结果缓存 30 分钟。</p>
+  </section>
+
+  <!-- ================= 04 大气剖面 ================= -->
+  <section class="sec sec-profile" id="profile">
+    <div class="sec-head">
+      <div>
+        <h2 class="kicker">04 / 大气剖面</h2>
+        <div class="display">从 12 公里高空<br>一路看到地面</div>
+      </div>
+      <p class="sec-lede">十一项因素按它们在大气里的真实高度排列。每一层的条长是该项得分，右侧是权重；缺数据的层显示「无数据」并从加权中排除。当前展示的是 <span class="hl" id="profileLabel">—</span>。</p>
+    </div>
+    <div class="layers" id="layers" role="table" aria-label="十一项因素评分"></div>
+    <div class="profile-meta" id="profileMeta"></div>
   </section>
 
   <!-- ================= 05 原理 ================= -->
