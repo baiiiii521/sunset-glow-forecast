@@ -3,145 +3,273 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>全球朝霞晚霞预测 · 火烧云预报</title>
+<title>霞 · 全球火烧云预报</title>
 <meta name="description" content="基于大气光学文献与实时气象数据，预测全球任意地点的朝霞、晚霞与火烧云：无烧 / 小烧 / 中烧 / 大烧。">
+<meta name="theme-color" content="#0B0918">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=JetBrains+Mono:wght@400;600;800&family=Instrument+Serif:ital@0;1&display=swap">
 <link rel="stylesheet" href="styles.css">
-<script>document.documentElement.classList.add('js');</script>
 </head>
-<body id="top">
-<canvas id="sky" aria-hidden="true"></canvas>
-<div class="grain" aria-hidden="true"></div>
+<body>
+
+<!-- 共享的云底滤镜：分形噪声 + 自下而上的漫射光照。阈值与光色由 app.js 按评分 / 时刻改写 -->
+<svg class="defs" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="fHi" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0022 0.0085" numOctaves="5" seed="11" result="n"/>
+      <feColorMatrix id="covHi" in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 -1.75" result="m"/>
+      <feGaussianBlur in="m" stdDeviation="1.5" result="mb"/>
+      <feDiffuseLighting id="lightHi" in="n" surfaceScale="5" diffuseConstant="1.15" lighting-color="#FFB070" result="l">
+        <feDistantLight azimuth="90" elevation="16"/>
+      </feDiffuseLighting>
+      <feComposite in="SourceGraphic" in2="l" operator="arithmetic" k1="1.1" k2="0.4" k3="0.18" k4="0" result="c"/>
+      <feComposite in="c" in2="mb" operator="in"/>
+    </filter>
+    <filter id="fLo" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.005 0.016" numOctaves="5" seed="4" result="n"/>
+      <feColorMatrix id="covLo" in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 5 0 0 0 -2.35" result="m"/>
+      <feGaussianBlur in="m" stdDeviation="1" result="mb"/>
+      <feDiffuseLighting id="lightLo" in="n" surfaceScale="7" diffuseConstant="1.2" lighting-color="#FFB070" result="l">
+        <feDistantLight azimuth="90" elevation="10"/>
+      </feDiffuseLighting>
+      <feComposite in="SourceGraphic" in2="l" operator="arithmetic" k1="1.15" k2="0.3" k3="0.1" k4="0" result="c"/>
+      <feComposite in="c" in2="mb" operator="in"/>
+    </filter>
+    <filter id="fTl" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0026 0.01" numOctaves="5" seed="23" result="n"/>
+      <feColorMatrix id="covTl" in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 -1.75" result="m"/>
+      <feGaussianBlur in="m" stdDeviation="1.4" result="mb"/>
+      <feDiffuseLighting id="lightTl" in="n" surfaceScale="5" diffuseConstant="1.15" lighting-color="#FFB070" result="l">
+        <feDistantLight id="lightTlDir" azimuth="90" elevation="16"/>
+      </feDiffuseLighting>
+      <feComposite in="SourceGraphic" in2="l" operator="arithmetic" k1="1.1" k2="0.4" k3="0.15" k4="0" result="c"/>
+      <feComposite in="c" in2="mb" operator="in"/>
+    </filter>
+    <radialGradient id="gHi" cx="0.54" cy="1" r="0.75">
+      <stop id="gHi0" offset="0" stop-color="#FFE09A"/><stop id="gHi1" offset="0.35" stop-color="#FF5A22"/><stop id="gHi2" offset="1" stop-color="#7A1A58"/>
+    </radialGradient>
+    <radialGradient id="gLo" cx="0.54" cy="1" r="0.7">
+      <stop id="gLo0" offset="0" stop-color="#FFE09A"/><stop id="gLo1" offset="0.3" stop-color="#FF5A22"/><stop id="gLo2" offset="1" stop-color="#3A1240"/>
+    </radialGradient>
+    <radialGradient id="gTl" cx="0.56" cy="1" r="0.75">
+      <stop id="gTl0" offset="0" stop-color="#FFE09A"/><stop id="gTl1" offset="0.35" stop-color="#FF5A22"/><stop id="gTl2" offset="1" stop-color="#7A1A58"/>
+    </radialGradient>
+    <symbol id="skyline" viewBox="0 0 1440 60" preserveAspectRatio="none">
+      <path d="M0 60V44L60 40L120 42L160 30L170 30L170 22L178 22L178 30L240 34L300 28L320 28L320 14L326 9L332 14L332 28L400 36L520 40L600 32L640 32L640 18L652 18L652 32L720 38L860 42L940 34L980 34L980 6L986 0L992 6L992 34L1060 38L1180 30L1240 36L1320 40L1440 38V60Z" fill="#0D0A18"/>
+    </symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main">跳到正文</a>
 
 <header class="topbar">
-  <a class="logo" href="#top">🌇 全球朝霞晚霞预测</a>
-  <nav class="topnav">
-    <a href="#events">四场预报</a>
-    <a href="#rankings">今日晚霞榜</a>
-    <a href="#capacity">容量</a>
-    <a href="#science">科学依据</a>
+  <a class="logo" href="#top">
+    <span class="logo-stamp">霞</span>
+    <span class="logo-text"><b>火烧云预报</b><small>GLOW INDEX · 11 FACTORS</small></span>
+  </a>
+  <nav class="topnav" aria-label="主导航">
+    <a href="#calendar">01 霞历</a>
+    <a href="#timeline">02 天色</a>
+    <a href="#profile">03 剖面</a>
+    <a href="#board">04 霞榜</a>
+    <a href="#science">05 原理</a>
   </nav>
+  <form class="search" role="search" onsubmit="return false">
+    <label for="searchInput" class="sr">搜索城市</label>
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="searchInput" type="text" placeholder="去哪看霞？南阳 / 京都 / 巴黎" autocomplete="off">
+    <button id="searchBtn" type="submit">查询</button>
+    <div id="searchResults" class="dropdown" hidden></div>
+  </form>
 </header>
 
-<main>
-  <!-- ================= 首屏 ================= -->
-  <section class="hero" id="heroSection">
-    <div class="hero-meta">
-      <span id="placeMeta">越南 · 10.82°, 106.63°</span>
-      <span id="fetchTime"></span>
+<main id="main">
+  <!-- ================= 天幕 ================= -->
+  <section class="hero" id="top" aria-label="当前选中场次">
+    <div class="hero-sky" id="heroSky"></div>
+    <div class="stars" aria-hidden="true" id="heroStars"></div>
+    <div class="rays" id="heroRays" aria-hidden="true"></div>
+    <div class="halo" id="heroHalo" aria-hidden="true"></div>
+    <div class="sun" id="heroSun" aria-hidden="true"></div>
+    <div class="cloud-deck" aria-hidden="true">
+      <div class="plane plane-hi"><svg class="drift-a"><rect width="100%" height="100%" fill="url(#gHi)" filter="url(#fHi)"/></svg></div>
+      <div class="plane plane-lo"><svg class="drift-b"><rect width="100%" height="100%" fill="url(#gLo)" filter="url(#fLo)"/></svg></div>
     </div>
-    <h1 class="city-name" id="cityName">胡志明市</h1>
-    <div class="hero-verdict">
-      <div class="hero-kicker" id="heroKicker">正在查询</div>
-      <div class="hero-title" id="heroTitle">正在拉取预报…</div>
-      <div class="hero-action" id="heroAction"></div>
-      <div class="hero-reason" id="heroReason"></div>
-      <div class="hero-conf" id="heroConf"></div>
-      <div class="hero-window" id="heroWindow"></div>
+    <svg class="skyline" aria-hidden="true"><use href="#skyline"/></svg>
+    <div class="water" id="heroWater" aria-hidden="true">
+      <div class="ripples"></div>
+      <div class="glint" id="heroGlint"></div>
+      <div class="water-fade"></div>
     </div>
-    <div id="loadError" class="load-error" hidden></div>
-    <div class="search">
-      <input id="searchInput" type="text" placeholder="搜索城市，如 南阳 / 京都 / 巴黎" autocomplete="off" aria-label="搜索城市">
-      <button id="searchBtn" type="button">查询</button>
-      <div id="searchResults" class="dropdown" hidden></div>
-    </div>
-    <div class="fav-row">
-      <button id="favBtn" class="fav-btn" type="button">☆ 收藏此地</button>
-      <div id="favBar" class="fav-bar"></div>
-    </div>
-    <div class="quick-view" id="quickView"></div>
-    <div class="watermark" aria-hidden="true">霞</div>
-  </section>
+    <div class="hero-shade" aria-hidden="true"></div>
 
-  <!-- ================= 四场预报 ================= -->
-  <section class="section" id="events"></section>
+    <div class="hero-inner">
+      <div class="hero-main">
+        <div class="hero-head">
+          <div class="hero-meta"><span id="placeMeta"></span><span id="fetchTime"></span></div>
+          <h1 class="city-name" id="cityName">胡志明市</h1>
+          <div class="hero-chips">
+            <button id="favBtn" class="chip-btn" type="button" aria-pressed="false">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>
+              <span id="favLabel">收藏此地</span>
+            </button>
+            <span class="chip" id="heroEvent">正在查询</span>
+          </div>
+          <div class="fav-bar" id="favBar"></div>
+        </div>
 
-  <!-- ================= 今日晚霞榜 ================= -->
-  <section class="section reveal" id="rankings">
-    <div class="section-head">
-      <span class="section-no">01</span>
-      <h2>今日晚霞榜</h2>
-    </div>
-    <p class="section-intro">全球 36 座 + 中国 34 座大城市，用与单点查询完全相同的算法批量计算各自下一场晚霞，按评分（同分看置信度）排序。点任意一行直接查看该城市。</p>
-    <div class="ticker" id="ticker" hidden><div class="ticker-inner" id="tickerInner"></div></div>
-    <div class="board-controls">
-      <div class="tabs" id="boardTabs">
-        <button class="tab-btn active" data-tab="global" type="button">全球 TOP 10</button>
-        <button class="tab-btn" data-tab="china" type="button">全中国 TOP 10</button>
+        <div class="hero-verdict">
+          <div class="score-line">
+            <span class="score-big" id="heroScore">--</span>
+            <span class="score-unit"><span>/ 100</span><span>霞指数</span></span>
+          </div>
+          <div class="verdict" id="heroTitle">正在拉取预报…</div>
+          <div class="action" id="heroAction"></div>
+          <p class="reason" id="heroReason"></p>
+          <div class="hero-facts">
+            <span id="heroWindow"></span>
+            <span id="heroBearing"></span>
+            <span id="heroConf"></span>
+          </div>
+          <div id="loadError" class="load-error" role="alert" hidden></div>
+        </div>
       </div>
-      <button id="boardLoadBtn" class="btn-primary" type="button">加载今日晚霞榜</button>
-      <span class="board-note" id="boardNote">榜单按需加载（约 350 次 API 调用），结果缓存 30 分钟。</span>
-    </div>
-    <div class="board-wrap">
-      <table class="board">
-        <thead><tr><th>名次</th><th>城市</th><th>日落（当地）</th><th>等级</th><th>评分</th><th>置信度</th></tr></thead>
-        <tbody id="boardBody"><tr><td colspan="6" class="board-empty">点击上方按钮加载榜单</td></tr></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- ================= 容量 ================= -->
-  <section class="section reveal" id="capacity">
-    <div class="section-head">
-      <span class="section-no">02</span>
-      <h2>能供多少人用？</h2>
-    </div>
-    <p>本站全部数据来自 <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 免费接口（预报 + CAMS 气溶胶），无需注册、无需密钥。以下按 Open-Meteo 官方免费层限额推算，<strong>均为估算值</strong>，实际以官方最新政策为准：</p>
-    <div class="cap-grid">
-      <div class="cap-card"><div class="cap-num">600 次/分钟</div><div class="cap-label">Open-Meteo 免费层速率上限</div></div>
-      <div class="cap-card"><div class="cap-num">10,000 次/天</div><div class="cap-label">Open-Meteo 免费层每日上限</div></div>
-      <div class="cap-card"><div class="cap-num">约 42 人</div><div class="cap-label">可同时发起全新查询（600 ÷ 每次查询约 14 次调用）</div></div>
-      <div class="cap-card"><div class="cap-num">约 700 次/天</div><div class="cap-label">全新查询日容量（10,000 ÷ 每次查询约 14 次调用）</div></div>
-    </div>
-    <p>热门城市与榜单结果有本地缓存，重复查询几乎不消耗额度。榜单一次完整计算约 350 次调用（70 城 × 5 次），缓存 30 分钟。超出免费层时可升级 <a href="https://open-meteo.com/en/pricing" target="_blank" rel="noopener">Open-Meteo 付费套餐</a>，或自行部署并接入自有气象数据源。</p>
-  </section>
-
-  <!-- ================= 科学依据 ================= -->
-  <section class="section reveal" id="science">
-    <div class="section-head">
-      <span class="section-no">03</span>
-      <h2>科学依据</h2>
-    </div>
-    <div class="sci-grid">
-      <div class="glass-card">
-        <h3>出霞的四个关键</h3>
-        <ol>
-          <li><strong>低层空气干净</strong>：污染越重晚霞越红是误区——低层气溶胶太多会压暗、洗淡霞色。</li>
-          <li><strong>中高云当幕布</strong>：卷云、高积云最佳；低云通常难出鲜艳色。</li>
-          <li><strong>太阳方向有晴空缺口</strong>：晚霞要西侧晴、云在东侧被照亮；朝霞反过来。上游需数百公里晴空带。</li>
-          <li><strong>雨后洗净</strong>：霞前下过雨、霞时已停，空气被洗净，是典型的“雨后大烧”窗口。</li>
-        </ol>
-      </div>
-      <div class="glass-card">
-        <h3>AOD 呈倒 U 形</h3>
-        <p>气溶胶光学厚度（AOD）对霞色的影响不是单调的：模拟中最红的总光学厚度约 τ≈0.1，太干净颜色平淡，太脏则压暗变蓝。本算法用倒 U 形处理 AOD，而非线性正相关。</p>
-        <p>关键文献：Corfidi《The Science of Sunsets》（NOAA/NWS）；SOLA 2013 辐射传输模拟；Zerefos et al. 2007；Haber et al. 2005。</p>
-      </div>
-      <div class="glass-card">
-        <h3>大烧 / 小烧的操作定义</h3>
-        <p>学界尚无统一标准。本站使用可标注的操作定义（需本地照片回标校准）：</p>
-        <ul>
-          <li><strong>无烧</strong>：天空基本无色或灰暗，或阴天/降水遮挡</li>
-          <li><strong>小烧</strong>：颜色局限于太阳附近 ±30°、仰角 &lt;10°，持续 &lt;20 分钟，黄橙为主</li>
-          <li><strong>中烧</strong>：覆盖太阳方向 ±60° 以上或蔓延至头顶，持续 20–45 分钟，橙红明显</li>
-          <li><strong>大烧</strong>：覆盖半个天空以上，持续 &gt;45 分钟（含余晖），深红/品红饱和</li>
-        </ul>
-      </div>
-      <div class="glass-card">
-        <h3>算法权重（11 项）</h3>
-        <p>中高云幕布 30 · 低云 20 · 太阳方向晴空缺口 20 · 霞时刻降水 10 · AOD 5 · 能见度 3 · PM2.5 3 · 露点差 2 · 风速 2 · CAPE 2；雨后洗净为纯加成 0–3 分。霞时刻降水直接封顶 40 分（最高小烧）。</p>
-        <p>参考启发式：SkyCandy 6 规则、SunsetWx、Skyfire。完整文献见研究笔记。</p>
-      </div>
-    </div>
-    <div class="disclaimer">
-      <strong>局限性说明：</strong>本预报为基于已发表文献的启发式算法，非官方气象预报；学界目前没有经过同行评审验证的“晚霞颜色指数”模型。预报准确度上限即数值天气预报本身的准确度。分级为待本地照片校准的操作定义。缺数据时页面明确显示“无数据”，绝不编造。
+      <div class="grade-vertical" id="heroGrade" aria-hidden="true"></div>
     </div>
   </section>
 
-  <footer class="footer">
-    数据：Open-Meteo 预报 API + CAMS 气溶胶（经 Open-Meteo 空气质量 API） · 地理编码：Open-Meteo Geocoding API ·
-    算法：文献启发式评分 · 本站为纯静态站，所有查询在浏览器端实时发出，不收集、不上传任何个人数据。
-  </footer>
+  <!-- ================= 01 霞历 ================= -->
+  <section class="calendar" id="calendar">
+    <div class="sec-row">
+      <h2 class="kicker">01 / 霞历 · 48 小时四场</h2>
+      <span class="hint">点一场，天幕随之换色</span>
+    </div>
+    <div class="ev-grid" id="events"></div>
+  </section>
+
+  <!-- ================= 02 天色时间轴 ================= -->
+  <section class="sec" id="timeline" aria-label="天色时间轴">
+    <div class="sec-head">
+      <div>
+        <h2 class="kicker">02 / 天色时间轴</h2>
+        <div class="display">拖着时间走，<br>看天一点点暗下去</div>
+      </div>
+      <p class="sec-lede" id="tlCaption">以选中场次为轴心，前后两个半小时。天色按太阳高度角划分；霞强度 = 这一场的评分 × 时间曲线，峰值在太阳没入地平线后、高度角约 −2° 时。</p>
+    </div>
+
+    <div class="tl-stage" id="tlStage">
+      <div class="stars" aria-hidden="true" id="tlStars"></div>
+      <div class="tl-glow" id="tlGlow" aria-hidden="true"></div>
+      <div class="tl-sun" id="tlSun" aria-hidden="true"></div>
+      <div class="cloud-deck tl-deck" aria-hidden="true">
+        <div class="plane plane-tl"><svg class="drift-a"><rect width="100%" height="100%" fill="url(#gTl)" filter="url(#fTl)"/></svg></div>
+      </div>
+      <svg class="skyline tl-skyline" aria-hidden="true"><use href="#skyline"/></svg>
+      <div class="water tl-water" id="tlWater" aria-hidden="true">
+        <div class="ripples"></div>
+        <div class="glint" id="tlGlint"></div>
+      </div>
+      <div class="tl-text">
+        <div class="tl-top">
+          <span class="tl-clock" id="tlClock">--:--</span>
+          <span class="tl-stats"><span id="tlElev">太阳高度 --</span><span id="tlPct">预计霞强度 --</span></span>
+        </div>
+        <div class="tl-phase">
+          <span class="tl-en" id="tlEn"></span>
+          <span class="tl-name" id="tlName"></span>
+          <span class="tl-desc" id="tlDesc"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tl-controls">
+      <div class="tl-bar">
+        <button id="tlPlay" class="chip-btn" type="button" aria-pressed="false">
+          <svg class="ic-play" aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg>
+          <svg class="ic-pause" aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16"/><rect x="14" y="4" width="5" height="16"/></svg>
+          <span id="tlPlayLabel">自动播放</span>
+        </button>
+        <span class="hint">拖动、点击轨道，或用方向键逐分钟移动</span>
+      </div>
+      <div class="scrub">
+        <div class="tl-bars" id="tlBars" aria-hidden="true"></div>
+        <div class="tl-bands" id="tlBands" aria-hidden="true"></div>
+        <div class="tl-head" id="tlHead" aria-hidden="true"><span></span></div>
+        <label for="tlRange" class="sr">时间（以该场日出或日落为中心）</label>
+        <input id="tlRange" class="tl-input" type="range" min="0" max="150" step="1" value="68">
+      </div>
+      <div class="tl-ticks" id="tlTicks" aria-hidden="true"></div>
+    </div>
+    <div class="tl-legend" id="tlLegend"></div>
+  </section>
+
+  <!-- ================= 03 大气剖面 ================= -->
+  <section class="sec sec-profile" id="profile">
+    <div class="sec-head">
+      <div>
+        <h2 class="kicker">03 / 大气剖面</h2>
+        <div class="display">从 12 公里高空<br>一路看到地面</div>
+      </div>
+      <p class="sec-lede">十一项因素按它们在大气里的真实高度排列。每一层的条长是该项得分，右侧是权重；缺数据的层显示「无数据」并从加权中排除。当前展示的是 <span class="hl" id="profileLabel">—</span>。</p>
+    </div>
+    <div class="layers" id="layers" role="table" aria-label="十一项因素评分"></div>
+    <div class="profile-meta" id="profileMeta"></div>
+  </section>
+
+  <!-- ================= 04 霞榜 ================= -->
+  <section class="sec sec-board" id="board">
+    <div class="sec-head">
+      <div>
+        <h2 class="kicker">04 / 霞榜 · 追着晨昏线跑</h2>
+        <div class="display">此刻，地球哪里<br>正在<span class="ember">烧</span>？</div>
+      </div>
+      <div class="board-actions">
+        <div class="tabs" id="boardTabs" role="tablist" aria-label="榜单范围">
+          <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="china">全中国</button>
+          <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="global">全球</button>
+        </div>
+        <button id="boardLoadBtn" class="btn-primary" type="button">加载今日晚霞榜</button>
+      </div>
+    </div>
+    <div class="world" id="world" aria-label="城市位置示意">
+      <div class="terminator" id="terminator" aria-hidden="true"><span>此刻日落线</span></div>
+      <div id="boardDots"></div>
+      <span class="world-l" id="worldL">180°W</span><span class="world-r" id="worldR">180°E</span>
+      <div class="world-empty" id="worldEmpty">点击「加载今日晚霞榜」，70 座城市会落在这条带上</div>
+    </div>
+    <div class="ticker" id="ticker" aria-hidden="true" hidden><div class="ticker-inner" id="tickerInner"></div></div>
+    <ol class="rank" id="boardList"></ol>
+    <p class="note" id="boardNote">全球 36 城 + 中国 34 城，同一算法批量计算下一场晚霞。按需加载（约 350 次 API 调用），结果缓存 30 分钟。</p>
+  </section>
+
+  <!-- ================= 05 原理 ================= -->
+  <section class="paper" id="science">
+    <h2 class="kicker">05 / 原理与局限</h2>
+    <div class="paper-display">要有幕布，<br>要有缺口，<br><em>还要一点运气。</em></div>
+    <div class="paper-grid">
+      <div><b>幕布 30</b><p>中高云是被夕阳从下方点亮的银幕。太薄没东西可烧，太厚光透不进来，30–70% 最好。低云通常难出鲜艳色。</p></div>
+      <div><b>缺口 20</b><p>沿太阳方位角往上游取 50 / 150 / 300 km 三个点。那边晴，光才能照过来：晚霞看西边，朝霞看东边。</p></div>
+      <div><b>空气 13</b><p>AOD 呈倒 U 形，最红点总光学厚度约 0.1——太干净颜色平淡，太脏压暗。雨后洗净是纯加成 0–3 分。</p></div>
+      <div><b>诚实</b><p>这是基于文献的启发式算法，不是官方预报；大烧 / 小烧是待照片校准的操作定义。缺数据就写「无数据」，绝不编造。</p></div>
+    </div>
+    <div class="paper-cap" id="capacity">
+      <div><b>600 次/分钟</b><span>Open-Meteo 免费层速率上限</span></div>
+      <div><b>10,000 次/天</b><span>免费层每日上限</span></div>
+      <div><b>约 42 人</b><span>可同时发起全新查询（每次约 14 次调用，估算）</span></div>
+      <div><b>约 350 次</b><span>一次完整霞榜计算，缓存 30 分钟</span></div>
+    </div>
+    <div class="paper-foot">
+      <span>≥75 大烧 · 55–74 中烧 · 35–54 小烧 · &lt;35 无烧</span>
+      <span>Corfidi《The Science of Sunsets》· SOLA 2013 · SkyCandy / SunsetWx / Skyfire</span>
+    </div>
+  </section>
 </main>
+
+<footer class="footer">
+  <span>数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 预报 / CAMS 空气质量 / 地理编码 · MIT</span>
+  <span>纯静态 · 查询在浏览器端实时发出 · 不收集任何个人数据</span>
+</footer>
 
 <script src="algo.js"></script>
 <script src="api.js"></script>

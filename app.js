@@ -1,7 +1,7 @@
 /* ============================================================
- * 全球朝霞晚霞预测 · 界面层
- * 结论优先：先给一句话结论 + 行动建议，技术细节默认折叠。
- * 动态天空画布：评分驱动配色，尊重 prefers-reduced-motion。
+ * 霞 · 全球火烧云预报 —— 界面层
+ * 天幕即界面：选中哪一场，天空、云底光照、太阳与水面就按它的评分换色。
+ * 结构：01 霞历（四场）→ 02 天色时间轴 → 03 大气剖面 → 04 霞榜 → 05 原理。
  * ============================================================ */
 (function () {
   'use strict';
@@ -16,8 +16,34 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+  function setVar(el, name, val) { if (el && el.style && el.style.setProperty) el.style.setProperty(name, val); }
 
   var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------------- 颜色工具 ---------------- */
+
+  function hx(h) { var n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function mixHex(a, b, k) {
+    var A1 = hx(a), B1 = hx(b);
+    return '#' + A1.map(function (v, i) {
+      var s = Math.round(v + (B1[i] - v) * k).toString(16);
+      return s.length < 2 ? '0' + s : s;
+    }).join('');
+  }
+  function rgba(h, a) { var c = hx(h); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a.toFixed(2) + ')'; }
+  // keys 按第一项升序：[[x, 颜色或颜色数组], …]
+  function interp(keys, x) {
+    if (x <= keys[0][0]) return keys[0][1];
+    for (var i = 1; i < keys.length; i++) {
+      if (x <= keys[i][0]) {
+        var k = (x - keys[i - 1][0]) / (keys[i][0] - keys[i - 1][0]);
+        var a = keys[i - 1][1], b = keys[i][1];
+        return Array.isArray(a) ? a.map(function (c, j) { return mixHex(c, b[j], k); }) : mixHex(a, b, k);
+      }
+    }
+    return keys[keys.length - 1][1];
+  }
 
   /* ---------------- 结论映射 ---------------- */
 
@@ -55,16 +81,44 @@
     'today|sunrise': '今日朝霞', 'today|sunset': '今晚晚霞',
     'tomorrow|sunrise': '明日朝霞', 'tomorrow|sunset': '明日晚霞'
   };
-  var EVENT_ICON = { sunrise: '🌅', sunset: '🌇' };
+  var DAY_LABEL = { today: '今天', tomorrow: '明天' };
+
+  function dirName(b) {
+    var names = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+    return names[Math.round(((b % 360) + 360) % 360 / 45) % 8] + ' ' + Math.round(b) + '°';
+  }
+
+  /* ---------------- 评分 → 天幕配色 ----------------
+   * near/mid/far/deep：云底从靠近太阳到远处的颜色；light：从地平线下照亮云底的光色；
+   * covHi/covLo：云量阈值（越接近 0 云越密）。无烧时是厚重的灰云。 */
+  function palette(score) {
+    if (score >= 75) return { bg: 'linear-gradient(180deg, #1A0C38 0%, #3C1450 30%, #8A2048 55%, #E0482A 80%, #FFB25A 100%)', core: '#FF9A3A', glow: 'rgba(255,110,40,.85)', near: '#FFE09A', mid: '#FF5A22', far: '#7A1A58', deep: '#3A1240', light: '#FFB070', covHi: -1.75, covLo: -2.35, ray: 'rgba(255,190,120,.22)', rayOp: 1, water: 'linear-gradient(180deg, #8A2E30 0%, #3A1430 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #5B1250 0%, #C42A3A 55%, #FF6A2C 100%)' };
+    if (score >= 55) return { bg: 'linear-gradient(180deg, #161440 0%, #33285E 32%, #7A3E68 58%, #D06A5A 82%, #F4B888 100%)', core: '#FFB060', glow: 'rgba(255,150,90,.65)', near: '#FFD2A0', mid: '#E2685E', far: '#4A2A6E', deep: '#28204A', light: '#FFC4A0', covHi: -1.6, covLo: -2.3, ray: 'rgba(255,200,150,.16)', rayOp: 0.8, water: 'linear-gradient(180deg, #6A3248 0%, #2A1838 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #4A2A6E 0%, #A84A6A 60%, #E8805A 100%)' };
+    if (score >= 35) return { bg: 'linear-gradient(180deg, #121836 0%, #2A3560 38%, #5E5E80 64%, #A88E8E 86%, #DCC0A4 100%)', core: '#F4CFA4', glow: 'rgba(240,200,160,.45)', near: '#F0D6BC', mid: '#A88496', far: '#33395E', deep: '#20243E', light: '#E8D6CC', covHi: -2.15, covLo: -2.7, ray: 'rgba(240,220,200,.1)', rayOp: 0.55, water: 'linear-gradient(180deg, #4A4458 0%, #1E1C30 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #33406A 0%, #7A6E8E 60%, #B58E80 100%)' };
+    return { bg: 'linear-gradient(180deg, #14171F 0%, #242936 40%, #3C414E 70%, #575C68 100%)', core: '#C4C6CC', glow: 'rgba(190,195,205,.25)', near: '#8C909A', mid: '#5C606C', far: '#30343E', deep: '#22252E', light: '#A0A4AE', covHi: -1.25, covLo: -1.7, ray: 'rgba(200,205,215,.04)', rayOp: 0.2, water: 'linear-gradient(180deg, #34384A 0%, #181A26 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #262C3A 0%, #3E4452 60%, #555B68 100%)' };
+  }
+
+  function covMatrix(k, off) { return '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ' + k + ' 0 0 0 ' + off; }
+
+  function paintClouds(prefix, near, mid, far, light, covEl, k, cov) {
+    var s0 = document.getElementById(prefix + '0'), s1 = document.getElementById(prefix + '1'), s2 = document.getElementById(prefix + '2');
+    if (s0) s0.setAttribute('stop-color', near);
+    if (s1) s1.setAttribute('stop-color', mid);
+    if (s2) s2.setAttribute('stop-color', far);
+    if (covEl) covEl.setAttribute('values', covMatrix(k, cov));
+  }
 
   /* ---------------- 状态 ---------------- */
 
   var state = {
     place: { name: '胡志明市', admin1: '', admin2: '', country: '越南', lat: 10.8231, lon: 106.6297, timezone: 'Asia/Ho_Chi_Minh' },
     data: null,
-    loading: false,
+    sel: 0,
     rankings: null,
-    rankingsTab: 'global'
+    tab: 'china',
+    t: 68,
+    timer: null,
+    tl: null
   };
 
   var LS_FAV = 'sg_favorites_v1';
@@ -79,352 +133,333 @@
     try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* ignore */ }
   }
 
-  /* ---------------- 动态天空画布 ---------------- */
-
-  var sky = {
-    canvas: null, ctx: null, target: 30, shown: 30,
-    stars: [], clouds: [], dust: [], meteors: [], nextMeteor: 0,
-    last: 0, running: false
-  };
-
-  // 配色关键帧：[分数, 顶部色, 地平线色, 太阳色, 光晕强度, 星星透明度]
-  var PALETTE = [
-    [0, [11, 16, 38], [30, 42, 82], [245, 217, 160], 0.15, 1.0],
-    [35, [20, 26, 61], [61, 42, 94], [255, 210, 138], 0.25, 0.7],
-    [55, [43, 26, 77], [138, 47, 77], [255, 179, 71], 0.45, 0.4],
-    [75, [61, 20, 80], [194, 65, 12], [255, 140, 26], 0.7, 0.15],
-    [100, [42, 10, 46], [220, 38, 38], [255, 210, 63], 0.9, 0.05]
-  ];
-
-  function mix(a, b, t) {
-    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-  }
-
-  function paletteAt(score) {
-    var s = Math.max(0, Math.min(100, score));
-    var i = 0;
-    while (i < PALETTE.length - 2 && s > PALETTE[i + 1][0]) i++;
-    var p0 = PALETTE[i], p1 = PALETTE[i + 1];
-    var t = (s - p0[0]) / (p1[0] - p0[0] || 1);
-    return {
-      top: mix(p0[1], p1[1], t), horizon: mix(p0[2], p1[2], t),
-      sun: mix(p0[3], p1[3], t), glow: p0[4] + (p1[4] - p0[4]) * t,
-      starAlpha: p0[5] + (p1[5] - p0[5]) * t
-    };
-  }
-
-  function rgb(c, a) {
-    return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + (a === undefined ? 1 : a) + ')';
-  }
-
-  function initSky() {
-    sky.canvas = $('#sky');
-    if (!sky.canvas) return;
-    sky.ctx = sky.canvas.getContext('2d');
-    resizeSky();
-    window.addEventListener('resize', resizeSky);
-    for (var i = 0; i < 90; i++) {
-      sky.stars.push({ x: Math.random(), y: Math.random() * 0.6, r: 0.5 + Math.random() * 1.3, ph: Math.random() * Math.PI * 2 });
+  function starsHTML(n, maxTop) {
+    var out = '';
+    for (var i = 0; i < n; i++) {
+      out += '<i style="left:' + ((i * 37) % 97 + 1) + '%;top:' + ((i * 23) % maxTop + 2) + '%;animation-delay:' + ((i % 7) * 0.6).toFixed(1) + 's"></i>';
     }
-    for (var c = 0; c < 6; c++) {
-      sky.clouds.push({
-        x: Math.random(), y: 0.45 + Math.random() * 0.3,
-        r: 0.14 + Math.random() * 0.22, speed: 0.000012 + Math.random() * 0.000012,
-        a: 0.10 + Math.random() * 0.10
-      });
-    }
-    for (var d = 0; d < 26; d++) {
-      sky.dust.push({
-        x: Math.random(), y: 0.55 + Math.random() * 0.45,
-        vy: 0.000008 + Math.random() * 0.000012, vx: (Math.random() - 0.5) * 0.00001,
-        r: 0.8 + Math.random() * 1.8, ph: Math.random() * Math.PI * 2
-      });
-    }
-    sky.nextMeteor = performance.now() + 4000;
-    sky.last = performance.now();
-    if (REDUCED) { drawSky(0); return; }
-    sky.running = true;
-    requestAnimationFrame(tickSky);
+    return out;
   }
 
-  function resizeSky() {
-    if (!sky.canvas) return;
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    sky.canvas.width = window.innerWidth * dpr;
-    sky.canvas.height = window.innerHeight * dpr;
-    sky.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  /* ---------------- 太阳高度角（简化天文算法，误差约 0.1°） ---------------- */
+
+  function sunElevation(ms, lat, lon) {
+    var rad = Math.PI / 180;
+    var d = ms / 86400000 - 10957.5; // 距 J2000.0 的天数
+    var g = (357.529 + 0.98560028 * d) * rad;
+    var q = 280.459 + 0.98564736 * d;
+    var L = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * rad;
+    var e = (23.439 - 0.00000036 * d) * rad;
+    var ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L));
+    var dec = Math.asin(Math.sin(e) * Math.sin(L));
+    var gmst = (18.697374558 + 24.06570982441908 * d) % 24;
+    var H = (gmst * 15 + lon) * rad - ra;
+    return Math.asin(Math.sin(lat * rad) * Math.sin(dec) + Math.cos(lat * rad) * Math.cos(dec) * Math.cos(H)) / rad;
   }
 
-  function tickSky(now) {
-    if (!sky.running) return;
-    var dt = Math.min(now - sky.last, 100);
-    sky.last = now;
-    sky.shown += (sky.target - sky.shown) * Math.min(1, dt / 600);
-    drawSky(now, dt);
-    requestAnimationFrame(tickSky);
-  }
-
-  function drawSky(now, dt) {
-    var ctx = sky.ctx, W = window.innerWidth, H = window.innerHeight;
-    var t = now || 0;
-    var pal = paletteAt(sky.shown);
-    var grad = ctx.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, rgb(pal.top));
-    grad.addColorStop(1, rgb(pal.horizon));
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-
-    var sunX = W * 0.5, sunY = H * 0.72;
-    var sunR = Math.min(W, H) * 0.085;
-
-    // 星星（闪烁加快）
-    ctx.fillStyle = '#fff';
-    sky.stars.forEach(function (s) {
-      var a = pal.starAlpha * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.004 + s.ph)));
-      ctx.globalAlpha = Math.max(0, a);
-      ctx.beginPath();
-      ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-
-    // 太阳光芒：持续旋转，低分也可见（最低透明度 0.05）
-    var rayAlpha = 0.05 + pal.glow * 0.10;
-    ctx.save();
-    ctx.translate(sunX, sunY);
-    ctx.rotate(t * 0.0001);
-    ctx.strokeStyle = rgb(pal.sun, rayAlpha);
-    ctx.lineWidth = 1.2;
-    for (var i = 0; i < 12; i++) {
-      var ang = (i / 12) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(ang) * sunR * 1.3, Math.sin(ang) * sunR * 1.3);
-      ctx.lineTo(Math.cos(ang) * sunR * 3.2, Math.sin(ang) * sunR * 3.2);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // 太阳 + 约 7 秒呼吸光晕
-    var breathe = 1 + 0.07 * Math.sin(t * 2 * Math.PI / 7000);
-    var glow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR * 4.2 * breathe);
-    glow.addColorStop(0, rgb(pal.sun, 0.55 * pal.glow + 0.2));
-    glow.addColorStop(1, rgb(pal.sun, 0));
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(sunX, sunY, sunR * 4.2 * breathe, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = rgb(pal.sun);
-    ctx.beginPath();
-    ctx.arc(sunX, sunY, sunR * breathe, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 地平线光晕
-    var hg = ctx.createRadialGradient(sunX, H * 0.86, 0, sunX, H * 0.86, W * 0.45 * breathe);
-    hg.addColorStop(0, rgb(pal.horizon, 0.5));
-    hg.addColorStop(1, rgb(pal.horizon, 0));
-    ctx.fillStyle = hg;
-    ctx.fillRect(0, H * 0.5, W, H * 0.5);
-
-    // 云层漂移：几十秒横穿天空
-    if (dt) sky.clouds.forEach(function (c) { c.x += c.speed * dt; if (c.x - c.r > 1.05) c.x = -c.r; });
-    sky.clouds.forEach(function (c) {
-      var cg = ctx.createRadialGradient(c.x * W, c.y * H, 0, c.x * W, c.y * H, c.r * W);
-      cg.addColorStop(0, rgb(pal.horizon, c.a + 0.08));
-      cg.addColorStop(1, rgb(pal.horizon, 0));
-      ctx.fillStyle = cg;
-      ctx.beginPath();
-      ctx.ellipse(c.x * W, c.y * H, c.r * W, c.r * W * 0.32, 0, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // 光尘粒子：26 颗上升，大烧时变金色火星
-    var dustColor = sky.shown >= 75 ? [251, 191, 36] : [255, 233, 196];
-    sky.dust.forEach(function (p) {
-      if (dt) {
-        p.y -= p.vy * dt;
-        p.x += p.vx * dt;
-        if (p.y < 0.25) { p.y = 0.9 + Math.random() * 0.1; p.x = Math.random(); }
-      }
-      var a = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * 0.002 + p.ph));
-      ctx.fillStyle = rgb(dustColor, a);
-      ctx.beginPath();
-      ctx.arc(p.x * W, p.y * H, p.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // 流星：约每 6 秒一道
-    if (dt && t > sky.nextMeteor) {
-      sky.meteors.push({
-        x: 0.15 + Math.random() * 0.7, y: 0.05 + Math.random() * 0.25,
-        vx: 0.0011 + Math.random() * 0.0006, vy: 0.0005 + Math.random() * 0.0003,
-        life: 1
-      });
-      sky.nextMeteor = t + 4000 + Math.random() * 4000;
-    }
-    sky.meteors = sky.meteors.filter(function (m) { return m.life > 0; });
-    sky.meteors.forEach(function (m) {
-      if (dt) { m.x += m.vx * dt; m.y += m.vy * dt; m.life -= dt / 900; }
-      var tail = 0.09;
-      var g2 = ctx.createLinearGradient(m.x * W, m.y * H, (m.x - m.vx * 300 * tail) * W, (m.y - m.vy * 300 * tail) * H);
-      g2.addColorStop(0, 'rgba(255,255,255,' + Math.max(0, m.life * 0.9) + ')');
-      g2.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.strokeStyle = g2;
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.moveTo(m.x * W, m.y * H);
-      ctx.lineTo((m.x - m.vx * 300 * tail) * W, (m.y - m.vy * 300 * tail) * H);
-      ctx.stroke();
-    });
-  }
-
-  /* ---------------- 评分数字滚动计数 ---------------- */
+  /* ---------------- 天幕 ---------------- */
 
   function animateNumber(el, target) {
-    if (REDUCED) { el.textContent = target; return; }
-    var start = performance.now(), dur = 800;
-    function step(now) {
-      var p = Math.min(1, (now - start) / dur);
-      var eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = Math.round(target * eased);
+    if (REDUCED || typeof requestAnimationFrame !== 'function') { el.textContent = target; return; }
+    var start = Date.now(), dur = 900;
+    function step() {
+      var p = Math.min(1, (Date.now() - start) / dur);
+      el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
       if (p < 1) requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
   }
 
-  /* ---------------- 渲染 ---------------- */
-
-  var COMP_LABELS = {
-    curtain: ['中高云幕布', 30], low: ['低云', 20], gap: ['太阳方向晴空缺口', 20],
-    precip: ['霞时刻降水', 10], aod: ['气溶胶光学厚度', 5], vis: ['能见度', 3],
-    pm: ['PM2.5', 3], dew: ['露点差', 2], wind: ['风速', 2], cape: ['对流 CAPE', 2]
-  };
-
-  function gradeClass(g) {
-    return { '大烧': 'g-big', '中烧': 'g-mid', '小烧': 'g-small', '无烧': 'g-none' }[g] || '';
-  }
-
-  function fmtInput(v, suffix) {
-    if (v === null || v === undefined || (typeof v === 'number' && isNaN(v))) return '无数据';
-    return (typeof v === 'number' ? (Math.round(v * 10) / 10) : v) + (suffix || '');
-  }
-
-  function detailHTML(ev) {
-    var rows = '';
-    Object.keys(COMP_LABELS).forEach(function (key) {
-      var comp = ev.comps[key];
-      if (!comp) return;
-      var score = comp[0], label = comp[1];
-      var bar = (score === null || score === undefined)
-        ? '<span class="detail-missing">无数据，已排除</span>'
-        : '<span class="scorebar"><span style="width:' + Math.max(0, Math.min(100, score)) + '%"></span></span>' +
-          '<span class="detail-score">' + Math.round(score) + '</span>';
-      rows += '<div class="detail-row"><span class="detail-name">' + COMP_LABELS[key][0] +
-        '（权重 ' + COMP_LABELS[key][1] + '）</span>' + bar +
-        '<span class="detail-label">' + esc(label) + '</span></div>';
+  function paintHero(ev) {
+    var p = palette(ev.score);
+    $('#heroSky').style.background = p.bg;
+    var rays = $('#heroRays');
+    setVar(rays, '--ray', p.ray);
+    rays.style.opacity = p.rayOp;
+    $('#heroHalo').style.background = 'radial-gradient(ellipse, ' + p.glow + ' 0%, transparent 62%)';
+    var sun = $('#heroSun');
+    sun.style.background = 'radial-gradient(circle at 50% 45%, #FFF8E4 0%, ' + p.core + ' 75%)';
+    sun.style.boxShadow = '0 0 60px 20px ' + p.core + ', 0 0 180px 60px ' + p.glow;
+    $('#heroWater').style.background = p.water;
+    $('#heroGlint').style.backgroundImage = 'repeating-linear-gradient(180deg, ' + p.core + ' 0 2px, transparent 2px 9px)';
+    paintClouds('gHi', p.near, p.mid, p.far, p.light, document.getElementById('covHi'), 4, p.covHi);
+    paintClouds('gLo', p.near, p.mid, p.deep, p.light, document.getElementById('covLo'), 5, p.covLo);
+    ['lightHi', 'lightLo'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.setAttribute('lighting-color', p.light);
     });
-    var washed = ev.comps.washed;
-    rows += '<div class="detail-row"><span class="detail-name">雨后洗净（加成 0–3 分）</span>' +
-      '<span class="detail-score">+' + (washed[0] ? (washed[0] * 0.03).toFixed(1) : '0.0') + '</span>' +
-      '<span class="detail-label">' + esc(washed[1]) + '</span></div>';
-    var inp = ev.inputs || {};
-    var raw = [
-      ['中云', fmtInput(inp.mid, '%')], ['高云', fmtInput(inp.high, '%')], ['低云', fmtInput(inp.low, '%')],
-      ['霞时刻降水', fmtInput(inp.precip, ' mm')], ['降水概率', fmtInput(inp.prob, '%')],
-      ['能见度', fmtInput(inp.visKm, ' km')], ['AOD（550nm）', inp.aod === null || inp.aod === undefined ? '无数据' : inp.aod.toFixed(2)],
-      ['PM2.5', fmtInput(inp.pm, ' µg/m³')], ['露点差', fmtInput(inp.dewSpread, ' °C')],
-      ['风速', fmtInput(inp.windSpeed, ' km/h')], ['风向', fmtInput(inp.windDir, '°')],
-      ['CAPE', fmtInput(inp.cape, ' J/kg')],
-      ['上游低云均值', fmtInput(inp.upLowAvg, '%')], ['上游总云均值', fmtInput(inp.upTotalAvg, '%')],
-      ['霞前 3 小时降水', fmtInput(inp.pre3, ' mm')]
-    ];
-    var rawHTML = raw.map(function (r) {
-      return '<div class="raw-item"><span>' + r[0] + '</span><b>' + esc(String(r[1])) + '</b></div>';
-    }).join('');
-    return '<div class="detail-rows">' + rows + '</div>' +
-      '<div class="detail-sub">原始输入数据</div>' +
-      '<div class="raw-grid">' + rawHTML + '</div>';
+    setVar($('#heroScore'), '--glow', p.glow);
   }
 
-  function eventCardHTML(ev, offsetSec) {
-    var key = ev.day + '|' + ev.type;
-    var label = EVENT_LABEL[key] || '';
-    var icon = EVENT_ICON[ev.type] || '';
-    var v = verdictOf(ev);
-    var past = ev.epoch < Date.now();
-    var timeStr = API.fmtTime(ev.epoch, offsetSec);
-    var dateStr = API.fmtDate(ev.epoch, offsetSec);
-    var win = API.viewingWindow(ev.epoch, ev.type === 'sunset', offsetSec);
-    return '<article class="event-card reveal" id="ev-' + key + '">' +
-      '<div class="ev-head"><span class="ev-icon">' + icon + '</span>' +
-      '<div><h3>' + label + (past ? ' <span class="past-tag">已过去</span>' : '') + '</h3>' +
-      '<p>' + esc(dateStr) + ' ' + timeStr + ' · 最佳观测窗 ' + esc(win) + '</p></div>' +
-      '<span class="grade-badge ' + gradeClass(ev.grade) + '">' + esc(ev.grade) + ' ' + esc(ev.gradeEmoji) + '</span></div>' +
-      '<div class="ev-verdict"><div class="ev-title">' + esc(v.title) + '</div>' +
-      '<div class="ev-action">' + esc(v.action) + '</div>' +
-      '<div class="ev-reason">' + esc(v.mainReason) + '</div>' +
-      '<div class="ev-conf">' + esc(v.confText) + '</div></div>' +
-      '<div class="ev-score"><span class="score-num" data-score="' + ev.score + '">0</span><span class="score-max">/100</span>' +
-      '<span class="ev-meta">置信度 ' + esc(ev.conf) + ' · ' + esc(ev.script) + '</span></div>' +
-      '<button class="why-btn" type="button">为什么这样判断？ <span class="why-arrow">▾</span></button>' +
-      '<div class="ev-detail" hidden>' + detailHTML(ev) + '</div>' +
-      '</article>';
-  }
-
-  function renderPlace() {
-    var p = state.place, data = state.data;
+  function renderHero() {
+    var data = state.data, p = state.place;
     $('#cityName').textContent = p.name;
     $('#placeMeta').textContent = [p.admin1, p.country].filter(Boolean).join(' · ') +
-      ' · ' + p.lat.toFixed(2) + '°, ' + p.lon.toFixed(2) + '°' +
-      (data ? ' · ' + esc(data.tzName) : '');
-    $('#favBtn').textContent = isFav(p) ? '★ 已收藏' : '☆ 收藏此地';
+      (p.admin1 || p.country ? ' · ' : '') + Math.abs(p.lat).toFixed(2) + '°' + (p.lat >= 0 ? 'N' : 'S') + ' ' +
+      Math.abs(p.lon).toFixed(2) + '°' + (p.lon >= 0 ? 'E' : 'W') + (data ? ' · ' + data.tzName : '');
+    renderFavButton();
     if (!data) return;
-    $('#fetchTime').textContent = '数据拉取于 ' + new Date(data.fetchedAt).toLocaleTimeString('zh-CN', { hour12: false });
-    var now = Date.now();
-    var next = null;
-    data.events.forEach(function (ev) { if (!next && ev.epoch > now) next = ev; });
-    if (!next) next = data.events[data.events.length - 1];
-    var v = verdictOf(next);
-    $('#heroKicker').textContent = '下一场 · ' + EVENT_LABEL[next.day + '|' + next.type] + ' ' + API.fmtTime(next.epoch, data.offsetSec);
+    $('#fetchTime').textContent = '拉取于 ' + new Date(data.fetchedAt).toLocaleTimeString('zh-CN', { hour12: false });
+    var ev = data.events[state.sel];
+    var v = verdictOf(ev);
+    var past = ev.epoch < Date.now();
+    $('#heroEvent').textContent = EVENT_LABEL[ev.day + '|' + ev.type] + ' · ' + API.fmtTime(ev.epoch, data.offsetSec) + (past ? ' · 已过去' : '');
+    animateNumber($('#heroScore'), ev.score);
     $('#heroTitle').textContent = v.title;
     $('#heroAction').textContent = v.action;
-    $('#heroReason').textContent = v.mainReason;
-    $('#heroConf').textContent = v.confText + ' · 评分 ' + next.score + '/100 · ' + next.script;
-    $('#heroWindow').textContent = '最佳观测窗 ' + API.viewingWindow(next.epoch, next.type === 'sunset', data.offsetSec);
-    sky.target = next.score;
-    // 四场速览
-    $('#quickView').innerHTML = data.events.map(function (ev) {
+    $('#heroReason').textContent = (ev.reasons || []).join('；');
+    $('#heroWindow').textContent = '观测窗 ' + API.viewingWindow(ev.epoch, ev.type === 'sunset', data.offsetSec).replace('约 ', '');
+    $('#heroBearing').textContent = '方位 ' + dirName(ev.bearing);
+    $('#heroConf').textContent = '置信度 ' + ev.conf + ' · ' + v.confText;
+    $('#heroGrade').textContent = ev.grade;
+    paintHero(ev);
+  }
+
+  /* ---------------- 01 霞历 ---------------- */
+
+  function renderEvents() {
+    var data = state.data;
+    var box = $('#events');
+    if (!data) {
+      box.innerHTML = '<div class="ev-skeleton"></div><div class="ev-skeleton"></div><div class="ev-skeleton"></div><div class="ev-skeleton"></div>';
+      return;
+    }
+    var now = Date.now();
+    box.innerHTML = data.events.map(function (ev, i) {
+      var p = palette(ev.score);
+      var v = verdictOf(ev);
       var past = ev.epoch < now;
-      return '<button class="quick-chip ' + (past ? 'past' : '') + '" data-ev="' + ev.day + '|' + ev.type + '" type="button">' +
-        '<span class="qc-label">' + EVENT_LABEL[ev.day + '|' + ev.type] + (past ? '（已过去）' : '') + '</span>' +
-        '<span class="qc-time">' + API.fmtTime(ev.epoch, data.offsetSec) + '</span>' +
-        '<span class="qc-grade ' + gradeClass(ev.grade) + '">' + esc(ev.grade) + ' ' + ev.score + '分</span></button>';
+      return '<button class="ev-tile' + (past ? ' past' : '') + '" type="button" data-idx="' + i + '" aria-pressed="' + (i === state.sel) + '"' +
+        ' style="background:' + p.tile + ';--tile-glow:' + p.glow + '">' +
+        '<span class="ev-top"><span>' + DAY_LABEL[ev.day] + (past ? ' · 已过去' : '') + '</span><span>' + API.fmtTime(ev.epoch, data.offsetSec) + '</span></span>' +
+        '<span class="ev-body"><span class="ev-label">' + EVENT_LABEL[ev.day + '|' + ev.type] + '</span>' +
+        '<span class="ev-score"><b>' + ev.score + '</b><span>' + esc(ev.grade) + '</span></span>' +
+        '<span class="ev-short">' + esc(v.title) + ' · ' + esc(v.mainReason) + '</span></span>' +
+        '<span class="ev-meter" aria-hidden="true"><i style="width:' + ev.score + '%"></i></span></button>';
     }).join('');
-    // 四场卡片
-    $('#events').innerHTML = data.events.map(function (ev) { return eventCardHTML(ev, data.offsetSec); }).join('');
-    $$('.event-card .score-num', $('#events')).forEach(function (el) {
-      animateNumber(el, parseInt(el.getAttribute('data-score'), 10) || 0);
+    $$('.ev-tile', box).forEach(function (btn) {
+      btn.addEventListener('click', function () { selectEvent(parseInt(btn.getAttribute('data-idx'), 10)); });
     });
-    $$('.event-card .why-btn', $('#events')).forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var detail = btn.parentElement.querySelector('.ev-detail');
-        var open = !detail.hidden;
-        detail.hidden = open;
-        btn.querySelector('.why-arrow').textContent = open ? '▾' : '▴';
-        btn.firstChild.textContent = open ? '为什么这样判断？ ' : '收起明细 ';
-      });
+  }
+
+  function selectEvent(i) {
+    state.sel = i;
+    $$('.ev-tile', $('#events')).forEach(function (b) {
+      b.setAttribute('aria-pressed', String(parseInt(b.getAttribute('data-idx'), 10) === i));
     });
-    $$('.quick-chip', $('#quickView')).forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        var el = document.getElementById('ev-' + chip.getAttribute('data-ev'));
-        if (el) el.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
-      });
+    renderHero();
+    buildTimeline();
+    renderProfile();
+  }
+
+  /* ---------------- 02 天色时间轴 ---------------- */
+
+  // 天色阶段按太阳高度角（°）划分
+  var PHASES = [
+    { name: '白昼', en: 'DAYLIGHT', hi: 90, lo: 6, color: '#7FA8D8', fg: '#0B0918', elev: '高于 +6°', short: '太阳还高，云是白的。', desc: '太阳还挂得很高，光线直射，云是白色的。现在出门还早。' },
+    { name: '金色时刻', en: 'GOLDEN HOUR', hi: 6, lo: -1, color: '#FFC36B', fg: '#0B0918', elev: '+6° 至 −1°', short: '光线变暖变斜，云边镀金。', desc: '光线变斜、变暖，云的边缘开始镀上金色。该出发去机位了。' },
+    { name: '火烧云', en: 'AFTERGLOW', hi: -1, lo: -4, color: '#FF5A1F', fg: '#0B0918', elev: '−1° 至 −4°', short: '光从地平线下点燃云底。', desc: '太阳刚没入地平线，光从下方斜射上来，把整片云底点燃。就是现在。' },
+    { name: '蓝调时刻', en: 'BLUE HOUR', hi: -4, lo: -8, color: '#2E56B0', fg: '#F4EDE4', elev: '−4° 至 −8°', short: '红色退场，天空均匀深蓝。', desc: '红色退场，整片天空变成均匀通透的深蓝，城市灯光亮起。拍剪影最好的时候。' },
+    { name: '浅黑', en: 'NAUTICAL', hi: -8, lo: -12, color: '#1E2A5A', fg: '#F4EDE4', elev: '−8° 至 −12°', short: '地平线留一线微光。', desc: '地平线还留着一线微光，天顶已经暗下来，第一批亮星出现。' },
+    { name: '黑', en: 'NIGHT', hi: -12, lo: -90, color: '#0E1124', fg: '#F4EDE4', elev: '低于 −12°', short: '天彻底黑透。', desc: '太阳已经在地平线下很深的地方，天空彻底黑透。' }
+  ];
+  function phaseOf(e) {
+    for (var i = 0; i < PHASES.length; i++) if (e < PHASES[i].hi && e >= PHASES[i].lo) return PHASES[i];
+    return e >= 6 ? PHASES[0] : PHASES[PHASES.length - 1];
+  }
+
+  // 关键帧以「太阳在地平线下的深度」d = −高度角 为横轴
+  var SKY_KEYS_BASE = [
+    [-14.8, ['#2E5C9A', '#5C8CC4', '#9CC0E0', '#E8E2C8']],
+    [-6, ['#2A4A86', '#5A78B0', '#C8A88A', '#FFD08A']],
+    [0.8, ['#1E2A5E', '#5A3C78', '#D0604E', '#FFB056'], true],
+    [2, ['#1A1446', '#4A2062', '#C0384A', '#FF7A3A'], true],
+    [4.4, ['#141A48', '#2A3A7A', '#6A5A9A', '#D8907A'], true],
+    [6.4, ['#0E1A4A', '#1E3A7E', '#3A5EA6', '#7A8EC0']],
+    [10, ['#0A0F2A', '#121C44', '#1E2C5A', '#34406E']],
+    [15, ['#05060F', '#080A18', '#0C1024', '#141A30']],
+    [22, ['#030308', '#05060E', '#070914', '#0A0D1A']]
+  ];
+  var GREY = ['#262A3A', '#3C4050', '#5A5E6C', '#8A8C94'];
+
+  function intensityAt(score, e) { return (score / 100) * Math.exp(-Math.pow(e + 2, 2) / (2 * 2.2 * 2.2)); }
+
+  function buildTimeline() {
+    var data = state.data;
+    if (!data) return;
+    var ev = data.events[state.sel];
+    var isRise = ev.type === 'sunrise';
+    var center = isRise ? 90 : 60;
+    var lat = state.place.lat, lon = state.place.lon;
+    var k = clamp((ev.score - 20) / 60, 0, 1);
+    var skyKeys = SKY_KEYS_BASE.map(function (r) {
+      return [r[0], r[2] ? r[1].map(function (c, j) { return mixHex(GREY[j], c, k); }) : r[1]];
     });
-    // 入场动画重播
-    var hero = $('#heroSection');
-    hero.classList.remove('enter');
-    void hero.offsetWidth;
-    hero.classList.add('enter');
-    observeReveals();
+    var lightKeys = [
+      [-14.8, '#FFFFFF'], [-6, '#FFE2B4'], [0.8, mixHex('#B0A8A8', '#FFB070', k)], [2, mixHex('#9A9AA4', '#FF7A40', k)],
+      [4.4, mixHex('#7A7A90', '#D0607A', k)], [7.4, '#5A6A9A'], [11, '#2A3352'], [22, '#121624']
+    ];
+    var epochAt = function (x) { return ev.epoch + (x - center) * 60000; };
+    var elevs = [];
+    for (var x = 0; x <= 150; x++) elevs.push(sunElevation(epochAt(x), lat, lon));
+
+    // 阶段色带（按分钟游程分组）
+    var bands = [];
+    for (var j = 0; j <= 150; j++) {
+      var ph = phaseOf(elevs[j]);
+      var last = bands[bands.length - 1];
+      if (last && last.ph === ph) last.to = j; else bands.push({ ph: ph, from: j, to: j });
+    }
+    $('#tlBands').innerHTML = bands.map(function (b) {
+      var w = (b.to - b.from + 1) / 151 * 100;
+      return '<span style="left:' + (b.from / 151 * 100).toFixed(2) + '%;width:' + w.toFixed(2) + '%;background:' + b.ph.color + ';color:' + b.ph.fg + '">' + (w > 5 ? b.ph.name : '') + '</span>';
+    }).join('');
+
+    // 霞强度柱（每 5 分钟）
+    var bars = '';
+    for (var xb = 0; xb <= 150; xb += 5) {
+      var eb = elevs[xb], pb = phaseOf(eb);
+      bars += '<i data-x="' + xb + '" style="height:' + (6 + intensityAt(ev.score, eb) * 110).toFixed(0) + 'px;background:' + (pb.name === '黑' ? '#2A2F48' : pb.color) + '"></i>';
+    }
+    $('#tlBars').innerHTML = bars;
+
+    // 刻度
+    $('#tlTicks').innerHTML = [0, 30, 60, 90, 120, 150].map(function (xt) {
+      var shift = xt === 0 ? '0' : (xt === 150 ? '-100%' : '-50%');
+      return '<span style="left:' + (xt / 150 * 100) + '%;transform:translateX(' + shift + ')">' + API.fmtTime(epochAt(xt), data.offsetSec) + '</span>';
+    }).join('');
+
+    // 阶段卡片
+    $('#tlLegend').innerHTML = bands.map(function (b) {
+      return '<button class="tl-card" type="button" data-mid="' + Math.round((b.from + b.to) / 2) + '" data-name="' + b.ph.name + '">' +
+        '<span class="tl-card-h"><i style="background:' + b.ph.color + '"></i>' + b.ph.name + '</span>' +
+        '<span class="tl-card-t">' + API.fmtTime(epochAt(b.from), data.offsetSec) + '–' + API.fmtTime(epochAt(b.to), data.offsetSec) + ' · ' + b.ph.elev + '</span>' +
+        '<span class="tl-card-d">' + b.ph.short + '</span></button>';
+    }).join('');
+    $$('.tl-card', $('#tlLegend')).forEach(function (btn) {
+      btn.addEventListener('click', function () { setT(parseInt(btn.getAttribute('data-mid'), 10)); });
+    });
+
+    $('#tlCaption').textContent = '以 ' + EVENT_LABEL[ev.day + '|' + ev.type] + ' ' + API.fmtTime(ev.epoch, data.offsetSec) +
+      ' 为轴心，前后两个半小时。天色按当地真实的太阳高度角划分；霞强度 = 这一场的评分 × 时间曲线（示意），峰值在太阳没入地平线后、高度角约 −2° 时。';
+
+    state.tl = { ev: ev, elevs: elevs, epochAt: epochAt, skyKeys: skyKeys, lightKeys: lightKeys, k: k };
+    paintCloudsTl();
+    updateTimeline();
+  }
+
+  function paintCloudsTl() {
+    var cov = palette(state.tl.ev.score).covHi;
+    var el = document.getElementById('covTl');
+    if (el) el.setAttribute('values', covMatrix(4, cov));
+  }
+
+  function updateTimeline() {
+    var tl = state.tl;
+    if (!tl) return;
+    var x = state.t, e = tl.elevs[x], d = -e, ev = tl.ev;
+    var sky = interp(tl.skyKeys, d);
+    var light = interp(tl.lightKeys, d);
+    var ph = phaseOf(e);
+    var sunColor = mixHex('#FFF0C8', '#FF6A2A', clamp((8 - e) / 9, 0, 1));
+    var sunOp = e > -1.5 ? 1 : 0;
+
+    $('#tlStage').style.background = 'linear-gradient(180deg, ' + sky[0] + ' 0%, ' + sky[1] + ' 40%, ' + sky[2] + ' 72%, ' + sky[3] + ' 100%)';
+    $('#tlStars').style.opacity = clamp((d - 6) / 7, 0, 1).toFixed(2);
+    var glowA = clamp(0.9 - (d - 2.5) / 10, 0, 0.9) * (d < -7 ? 0.4 : 1);
+    $('#tlGlow').style.background = 'radial-gradient(ellipse, ' + rgba(mixHex(sky[3], '#FFA050', tl.k * 0.5), glowA) + ' 0%, transparent 62%)';
+    var sun = $('#tlSun');
+    sun.style.bottom = (140 + e * 16).toFixed(0) + 'px';
+    sun.style.opacity = sunOp;
+    sun.style.background = 'radial-gradient(circle at 50% 45%, #FFF8E4 0%, ' + sunColor + ' 75%)';
+    sun.style.boxShadow = '0 0 50px 16px ' + sunColor;
+    $('#tlWater').style.background = 'linear-gradient(180deg, ' + mixHex(sky[3], '#0B0918', 0.45) + ' 0%, ' + mixHex(sky[2], '#0B0918', 0.75) + ' 45%, #0B0918 100%)';
+    var glint = $('#tlGlint');
+    glint.style.opacity = sunOp;
+    glint.style.backgroundImage = 'repeating-linear-gradient(180deg, ' + sunColor + ' 0 2px, transparent 2px 9px)';
+    paintClouds('gTl', light, mixHex(light, sky[1], 0.45), mixHex(sky[0], '#000000', 0.2), light, null);
+    var lt = document.getElementById('lightTl');
+    if (lt) lt.setAttribute('lighting-color', light);
+    var ld = document.getElementById('lightTlDir');
+    if (ld) ld.setAttribute('elevation', clamp(16 + e * 2, 6, 40).toFixed(1));
+
+    $('#tlClock').textContent = API.fmtTime(tl.epochAt(x), state.data.offsetSec);
+    $('#tlElev').textContent = '太阳高度 ' + (e >= 0 ? '+' : '−') + Math.abs(e).toFixed(1) + '°';
+    $('#tlPct').textContent = '预计霞强度 ' + Math.round(intensityAt(ev.score, e) * 100) + '%';
+    $('#tlEn').textContent = ph.en;
+    $('#tlName').textContent = ph.name;
+    $('#tlName').style.color = ph.name === '火烧云' ? '#FFB070' : '#FFF4E2';
+    $('#tlDesc').textContent = ph.desc;
+    $('#tlHead').style.left = (x / 150 * 100).toFixed(2) + '%';
+    var range = $('#tlRange');
+    range.value = String(x);
+    range.setAttribute('aria-valuetext', $('#tlClock').textContent + ' ' + ph.name);
+    $$('#tlBars i').forEach(function (b) { b.classList.toggle('on', Math.abs(parseInt(b.getAttribute('data-x'), 10) - x) <= 5); });
+    $$('#tlLegend .tl-card').forEach(function (b) {
+      if (b.getAttribute('data-name') === ph.name) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+    });
+  }
+
+  function setT(x) { state.t = clamp(x, 0, 150); updateTimeline(); }
+
+  function togglePlay() {
+    var btn = $('#tlPlay');
+    if (state.timer) {
+      clearInterval(state.timer);
+      state.timer = null;
+      btn.setAttribute('aria-pressed', 'false');
+      $('#tlPlayLabel').textContent = '自动播放';
+      return;
+    }
+    state.timer = setInterval(function () { setT(state.t >= 150 ? 0 : state.t + 1); }, 90);
+    btn.setAttribute('aria-pressed', 'true');
+    $('#tlPlayLabel').textContent = '暂停';
+  }
+
+  /* ---------------- 03 大气剖面 ---------------- */
+
+  var LAYERS = [
+    ['curtain', '中高云幕布', '6–12 km', 30], ['gap', '太阳方向缺口', '上游 300 km', 20],
+    ['low', '低云', '0–2 km', 20], ['precip', '霞时刻降水', '云底', 10],
+    ['cape', 'CAPE 对流', '对流层', 2], ['dew', '露点差', '边界层', 2],
+    ['vis', '能见度', '近地面', 3], ['aod', 'AOD 气溶胶', '柱总量', 5],
+    ['pm', 'PM2.5', '地面', 3], ['wind', '风速', '10 m', 2], ['washed', '雨后洗净', '加成', '+3']
+  ];
+
+  function fmtIn(v, suffix, digits) {
+    if (v === null || v === undefined || (typeof v === 'number' && isNaN(v))) return '无数据';
+    return (typeof v === 'number' ? v.toFixed(digits || 0) : v) + (suffix || '');
+  }
+
+  function renderProfile() {
+    var data = state.data;
+    if (!data) { $('#layers').innerHTML = ''; return; }
+    var ev = data.events[state.sel];
+    $('#profileLabel').textContent = EVENT_LABEL[ev.day + '|' + ev.type] + ' ' + API.fmtTime(ev.epoch, data.offsetSec);
+    $('#layers').innerHTML = LAYERS.map(function (L, i) {
+      var c = ev.comps[L[0]] || [null, '无数据'];
+      var s = c[0];
+      var missing = s === null || s === undefined;
+      var color = missing ? '' : (s >= 75 ? 'linear-gradient(90deg,#FF5A1F,#FFC36B)' : s >= 45 ? 'linear-gradient(90deg,#A84A6A,#E8805A)' : 'linear-gradient(90deg,#3E4452,#6E7380)');
+      var scoreTxt = L[0] === 'washed' ? '+' + (s ? (s * 0.03).toFixed(1) : '0.0') : (missing ? '—' : Math.round(s));
+      return '<div class="layer-row" role="row">' +
+        '<span class="layer-alt" role="cell">' + L[2] + '</span>' +
+        '<span class="layer-name" role="cell"><b>' + L[1] + '</b><span>' + esc(c[1]) + '</span></span>' +
+        '<span class="layer-track" role="cell">' + (missing ? '<em>无数据，已排除</em>' : '<i style="width:' + clamp(s, 0, 100) + '%;background:' + color + ';animation-delay:' + (i * 0.06).toFixed(2) + 's"></i>') + '</span>' +
+        '<span class="layer-score" role="cell"><b>' + scoreTxt + '</b><span>×' + L[3] + '</span></span></div>';
+    }).join('');
+    var inp = ev.inputs || {};
+    var meta = [
+      '剧本 · ' + ev.script,
+      '中 / 高 / 低云 ' + fmtIn(inp.mid, '%') + ' / ' + fmtIn(inp.high, '%') + ' / ' + fmtIn(inp.low, '%'),
+      '上游总云 ' + fmtIn(inp.upTotalAvg, '%'),
+      'AOD ' + fmtIn(inp.aod, '', 2),
+      'PM2.5 ' + fmtIn(inp.pm, ' µg/m³'),
+      '能见度 ' + fmtIn(inp.visKm, ' km')
+    ];
+    if (ev.comps.precip && ev.comps.precip[0] === 0) meta.push('霞时刻降水 → 封顶 40 分');
+    if ((ev.reasons || []).some(function (r) { return r.indexOf('跨境烟霾') >= 0; })) meta.push('偏南风 + AOD 高 → −5');
+    $('#profileMeta').innerHTML = meta.map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('');
   }
 
   /* ---------------- 搜索 ---------------- */
@@ -444,8 +479,8 @@
       var sub = [p.admin1, p.admin2 && p.admin2 !== p.name ? p.admin2 : '', p.country].filter(Boolean).join(' · ');
       return '<button class="cand" data-idx="' + idx + '" type="button">' +
         '<span class="cand-name">' + esc(p.name) + '</span>' +
-        '<span class="cand-sub">' + esc(sub) + '</span>' +
-        '<span class="cand-coord">' + p.lat.toFixed(2) + '°, ' + p.lon.toFixed(2) + '°</span></button>';
+        '<span class="cand-coord">' + p.lat.toFixed(2) + '°, ' + p.lon.toFixed(2) + '°</span>' +
+        '<span class="cand-sub">' + esc(sub) + '</span></button>';
     }).join('');
     box.hidden = false;
     $$('.cand', box).forEach(function (btn) {
@@ -477,19 +512,21 @@
   /* ---------------- 收藏 ---------------- */
 
   function getFavs() { return loadJSON(LS_FAV, []); }
-
   function isFav(p) {
-    return getFavs().some(function (f) {
-      return Math.abs(f.lat - p.lat) < 0.01 && Math.abs(f.lon - p.lon) < 0.01;
-    });
+    return getFavs().some(function (f) { return Math.abs(f.lat - p.lat) < 0.01 && Math.abs(f.lon - p.lon) < 0.01; });
+  }
+  function renderFavButton() {
+    var on = isFav(state.place);
+    $('#favBtn').setAttribute('aria-pressed', String(on));
+    $('#favLabel').textContent = on ? '已收藏' : '收藏此地';
   }
 
   function renderFavs() {
     var favs = getFavs();
     $('#favBar').innerHTML = favs.map(function (f, idx) {
       return '<span class="fav-chip"><button class="fav-go" data-idx="' + idx + '" type="button">' + esc(f.name) + '</button>' +
-        '<button class="fav-del" data-idx="' + idx + '" type="button" title="取消收藏">×</button></span>';
-    }).join('') || '<span class="fav-empty">暂无收藏</span>';
+        '<button class="fav-del" data-idx="' + idx + '" type="button" aria-label="取消收藏 ' + esc(f.name) + '">×</button></span>';
+    }).join('');
     $$('.fav-go', $('#favBar')).forEach(function (b) {
       b.addEventListener('click', function () {
         var f = favs[parseInt(b.getAttribute('data-idx'), 10)];
@@ -502,7 +539,7 @@
         favs2.splice(parseInt(b.getAttribute('data-idx'), 10), 1);
         saveJSON(LS_FAV, favs2);
         renderFavs();
-        $('#favBtn').textContent = isFav(state.place) ? '★ 已收藏' : '☆ 收藏此地';
+        renderFavButton();
       });
     });
   }
@@ -520,48 +557,73 @@
     });
     saveJSON(LS_FAV, favs);
     renderFavs();
-    $('#favBtn').textContent = idx >= 0 ? '☆ 收藏此地' : '★ 已收藏';
+    renderFavButton();
   }
 
-  /* ---------------- 榜单 ---------------- */
+  /* ---------------- 04 霞榜 ---------------- */
 
-  function boardRowHTML(r, rank) {
-    var c = r.city;
-    return '<tr class="board-row" data-lat="' + c.lat + '" data-lon="' + c.lon +
-      '" data-name="' + esc(c.name) + '" data-country="' + esc(c.country) + '">' +
-      '<td class="board-rank">' + rank + '</td>' +
-      '<td class="board-city">' + esc(c.name) + '<span>' + esc(c.country) + '</span></td>' +
-      '<td>' + API.fmtTime(r.epoch, r.offsetSec || 0) + '</td>' +
-      '<td><span class="grade-badge ' + gradeClass(r.grade) + '">' + esc(r.grade) + '</span></td>' +
-      '<td><span class="board-score">' + r.score + '</span><span class="scorebar"><span style="width:' + r.score + '%"></span></span></td>' +
-      '<td>置信度 ' + esc(r.conf) + '</td></tr>';
+  function project(lat, lon, china) {
+    if (china) return { x: (lon - 80) / 50 * 90 + 5, y: (50 - lat) / 32 * 84 + 8 };
+    return { x: (lon + 180) / 360 * 92 + 4, y: (75 - lat) / 120 * 84 + 8 };
+  }
+
+  // 此刻赤道上的日落经度：当地太阳时约 18:00 的地方
+  function sunsetLongitude(now) {
+    var d = new Date(now);
+    var utcH = d.getUTCHours() + d.getUTCMinutes() / 60;
+    var lon = (18 - utcH) * 15;
+    return ((lon + 540) % 360) - 180;
+  }
+
+  function placeTerminator() {
+    var china = state.tab === 'china';
+    var pos = project(0, sunsetLongitude(Date.now()), china).x;
+    var term = $('#terminator');
+    term.hidden = pos < 0 || pos > 100;
+    term.style.left = pos.toFixed(1) + '%';
+    $('#worldL').textContent = china ? '80°E' : '180°W';
+    $('#worldR').textContent = china ? '130°E' : '180°E';
+  }
+
+  function goCity(c) {
+    setPlace({ name: c.name, admin1: '', admin2: '', country: c.country, lat: c.lat, lon: c.lon, timezone: '' });
+    var top = document.getElementById('top');
+    if (top && top.scrollIntoView) top.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth' });
   }
 
   function renderBoard() {
+    placeTerminator();
     var data = state.rankings;
     if (!data) return;
-    var list = state.rankingsTab === 'global' ? data.global : data.china;
-    $('#boardBody').innerHTML = list.map(function (r, i) { return boardRowHTML(r, i + 1); }).join('') ||
-      '<tr><td colspan="6">暂无数据</td></tr>';
-    $$('.board-row', $('#boardBody')).forEach(function (tr) {
-      tr.addEventListener('click', function () {
-        setPlace({
-          name: tr.getAttribute('data-name'), admin1: '', admin2: '',
-          country: tr.getAttribute('data-country'),
-          lat: parseFloat(tr.getAttribute('data-lat')), lon: parseFloat(tr.getAttribute('data-lon')),
-          timezone: ''
-        });
-        document.getElementById('top').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth' });
-      });
+    var china = state.tab === 'china';
+    var list = china ? data.china : data.global;
+    $('#worldEmpty').hidden = true;
+    $('#boardDots').innerHTML = list.map(function (r, i) {
+      var c = r.city, p = project(c.lat, c.lon, china);
+      var size = Math.max(6, 6 + (r.score - 40) / 5);
+      var col = r.score >= 75 ? '#FF5A1F' : r.score >= 55 ? '#FFA65A' : '#C9A08E';
+      return '<button class="dot" type="button" data-i="' + i + '" style="left:' + p.x.toFixed(1) + '%;top:' + p.y.toFixed(1) + '%" aria-label="' + esc(c.name) + ' ' + r.score + ' 分">' +
+        '<i style="width:' + size.toFixed(0) + 'px;height:' + size.toFixed(0) + 'px;background:' + col + ';box-shadow:0 0 18px ' + col + '"></i>' +
+        '<span>' + esc(c.name) + ' <b>' + r.score + '</b></span></button>';
+    }).join('');
+    $('#boardList').innerHTML = list.map(function (r, i) {
+      var c = r.city;
+      return '<li><button class="rank-row" type="button" data-i="' + i + '">' +
+        '<span class="rank-no">' + (i < 9 ? '0' : '') + (i + 1) + '</span>' +
+        '<span class="rank-city"><b>' + esc(c.name) + '</b><span>' + esc(c.country) + ' · ' + (r.day === 'today' ? '今日' : '明日') + '晚霞 ' + API.fmtTime(r.epoch, r.offsetSec || 0) + ' · 置信度 ' + esc(r.conf) + '</span></span>' +
+        '<span class="rank-grade">' + esc(r.grade) + '</span>' +
+        '<span class="rank-score">' + r.score + '</span></button></li>';
+    }).join('') || '<li class="note">暂无数据</li>';
+    $$('.dot, .rank-row', $('#board')).forEach(function (b) {
+      b.addEventListener('click', function () { goCity(list[parseInt(b.getAttribute('data-i'), 10)].city); });
     });
-    // 跑马灯：双榜前 3
-    var items = [];
-    data.global.slice(0, 3).forEach(function (r) { items.push('全球TOP ' + r.city.name + ' ' + r.score + '分 ' + r.grade); });
-    data.china.slice(0, 3).forEach(function (r) { items.push('中国TOP ' + r.city.name + ' ' + r.score + '分 ' + r.grade); });
-    var ticker = items.join('　·　') + '　·　';
-    $('#tickerInner').textContent = ticker + ticker;
+    var items = data.global.concat(data.china).map(function (r) {
+      return '<span>' + esc(r.city.name) + '<b>' + r.score + '</b></span>';
+    }).join('');
+    $('#tickerInner').innerHTML = items + items;
     $('#ticker').hidden = false;
-    $('#boardNote').textContent = '榜单计算于 ' + new Date(data.computedAt).toLocaleTimeString('zh-CN', { hour12: false }) + '，30 分钟缓存';
+    $('#boardNote').textContent = '榜单计算于 ' + new Date(data.computedAt).toLocaleTimeString('zh-CN', { hour12: false }) +
+      ' · 全球 36 城 + 中国 34 城，同一算法计算下一场晚霞，各取 TOP 10 · 30 分钟缓存';
   }
 
   function loadBoard() {
@@ -573,9 +635,9 @@
     }
     var btn = $('#boardLoadBtn');
     btn.disabled = true;
-    btn.textContent = '正在计算榜单（70 城）… 0%';
+    btn.textContent = '正在计算 70 城… 0%';
     API.loadRankings(function (done, total) {
-      btn.textContent = '正在计算榜单（70 城）… ' + Math.round(done / total * 100) + '%';
+      btn.textContent = '正在计算 70 城… ' + Math.round(done / total * 100) + '%';
     }).then(function (data) {
       state.rankings = data;
       saveJSON(LS_RANK, data);
@@ -584,71 +646,64 @@
       renderBoard();
     }).catch(function (e) {
       btn.disabled = false;
-      btn.textContent = '加载榜单';
+      btn.textContent = '加载今日晚霞榜';
       $('#boardNote').textContent = '榜单加载失败：' + (e && e.message || '请检查网络');
     });
   }
 
   /* ---------------- 地点切换 ---------------- */
 
+  var placeSeq = 0;
+
   function setPlace(place) {
+    var seq = ++placeSeq;
     state.place = place;
     state.data = null;
-    state.loading = true;
     saveJSON(LS_LAST, place);
-    $('#cityName').textContent = place.name;
+    $('#heroScore').textContent = '--';
     $('#heroTitle').textContent = '正在拉取预报…';
     $('#heroAction').textContent = '';
     $('#heroReason').textContent = '';
-    $('#heroConf').textContent = '';
-    $('#heroKicker').textContent = '正在查询';
     $('#heroWindow').textContent = '';
-    $('#events').innerHTML = '';
-    $('#quickView').innerHTML = '';
-    $('#placeMeta').textContent = [place.admin1, place.country].filter(Boolean).join(' · ') +
-      ' · ' + place.lat.toFixed(2) + '°, ' + place.lon.toFixed(2) + '°';
-    $('#favBtn').textContent = isFav(place) ? '★ 已收藏' : '☆ 收藏此地';
+    $('#heroBearing').textContent = '';
+    $('#heroConf').textContent = '';
+    $('#heroGrade').textContent = '';
+    $('#heroEvent').textContent = '正在查询';
+    $('#fetchTime').textContent = '';
     $('#loadError').hidden = true;
+    renderHero();
+    renderEvents();
+    renderProfile();
     API.evaluatePlace(place.lat, place.lon).then(function (data) {
+      if (seq !== placeSeq) return;
       state.data = data;
-      state.loading = false;
-      renderPlace();
+      var now = Date.now(), sel = -1;
+      data.events.forEach(function (ev, i) { if (sel < 0 && ev.epoch > now) sel = i; });
+      state.sel = sel < 0 ? data.events.length - 1 : sel;
+      renderEvents();
+      renderHero();
+      buildTimeline();
+      renderProfile();
     }).catch(function (e) {
-      state.loading = false;
+      if (seq !== placeSeq) return;
       $('#heroTitle').textContent = '预报暂时不可用';
-      $('#heroAction').textContent = '';
-      $('#heroReason').textContent = '拉取预报失败：' + (e && e.message || '请检查网络');
-      $('#heroConf').textContent = '未编造任何数据';
+      $('#heroReason').textContent = '未编造任何数据。';
+      $('#events').innerHTML = '';
       $('#loadError').hidden = false;
       $('#loadError').textContent = '预报拉取失败：' + (e && e.message || '请检查网络') + '。请稍后重试。';
     });
   }
 
-  /* ---------------- 滚动显现 ---------------- */
-
-  var revealObserver = null;
-  function observeReveals() {
-    if (!('IntersectionObserver' in window)) {
-      $$('.reveal').forEach(function (el) { el.classList.add('visible'); });
-      return;
-    }
-    if (!revealObserver) {
-      revealObserver = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) {
-          if (en.isIntersecting) { en.target.classList.add('visible'); revealObserver.unobserve(en.target); }
-        });
-      }, { threshold: 0.08 });
-    }
-    $$('.reveal:not(.visible)').forEach(function (el) { revealObserver.observe(el); });
-  }
-
   /* ---------------- 初始化 ---------------- */
 
   function init() {
-    initSky();
+    $('#heroStars').innerHTML = starsHTML(18, 30);
+    $('#tlStars').innerHTML = starsHTML(28, 55);
+    paintHero({ score: 60 });
     renderFavs();
     var saved = loadJSON(LS_LAST, null);
     if (saved && saved.name && typeof saved.lat === 'number') state.place = saved;
+
     $('#searchInput').addEventListener('input', function () {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(doSearch, 300);
@@ -658,18 +713,28 @@
     });
     $('#searchBtn').addEventListener('click', doSearch);
     document.addEventListener('click', function (e) {
-      if (!e.target.closest('.search')) $('#searchResults').hidden = true;
+      if (!e.target.closest || !e.target.closest('.search')) $('#searchResults').hidden = true;
     });
     $('#favBtn').addEventListener('click', toggleFav);
+    $('#tlRange').addEventListener('input', function (e) { setT(parseInt(e.target.value, 10)); });
+    $('#tlPlay').addEventListener('click', togglePlay);
     $('#boardLoadBtn').addEventListener('click', loadBoard);
     $('#boardTabs').addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-tab]');
+      var btn = e.target.closest && e.target.closest('[data-tab]');
       if (!btn) return;
-      state.rankingsTab = btn.getAttribute('data-tab');
-      $$('#boardTabs .tab-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      state.tab = btn.getAttribute('data-tab');
+      $$('#boardTabs .tab-btn').forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', String(on));
+      });
       renderBoard();
     });
-    observeReveals();
+
+    var cached = loadJSON(LS_RANK, null);
+    if (cached && Date.now() - cached.computedAt < RANK_TTL && cached.global && cached.china) state.rankings = cached;
+    renderBoard();
+    setInterval(placeTerminator, 60000);
     setPlace(state.place);
   }
 
