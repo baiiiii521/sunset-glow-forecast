@@ -62,13 +62,14 @@ button { font-family: inherit; }
   font-family: var(--serif); font-size: 15px; padding: 10px 12px;
 }
 .search input::placeholder { color: var(--dim); }
-.search button {
+.search button[type="submit"] {
   min-height: 44px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--cream);
   color: var(--ink); font-weight: 700; font-size: 15px; cursor: pointer;
 }
 .locate-btn {
-  display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: 4px;
-  border: 0; border-radius: 999px; background: transparent; color: var(--cream); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 14px; margin-right: 6px;
+  border: 1px solid rgba(244, 237, 228, .35); border-radius: 999px; background: transparent; color: var(--cream);
+  font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer;
 }
 .locate-btn:hover { background: rgba(244, 237, 228, .1); }
 .locate-btn.busy svg { animation: spin 1.2s linear infinite; }
