@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=JetBrains+Mono:wght@400;600;800&family=Instrument+Serif:ital@0;1&display=swap">
-<link rel="stylesheet" href="styles.css?v=1346bebc">
+<link rel="stylesheet" href="styles.css?v=802f3780">
 </head>
 <body>
 
@@ -136,6 +136,8 @@
             <span id="heroWindow"></span>
             <span id="heroBearing"></span>
             <span id="heroConf"></span>
+            <span id="heroModels"></span>
+            <span id="heroClarity"></span>
           </div>
           <div id="loadError" class="load-error" role="alert" hidden></div>
         </div>
@@ -231,6 +233,7 @@
       <div class="world-empty" id="worldEmpty">今日霞榜加载后，TOP 10 城市会落在这条带上</div>
     </div>
     <div class="ticker" id="ticker" aria-hidden="true" hidden><div class="ticker-inner" id="tickerInner"></div></div>
+    <div class="board-summary" id="boardSummary" hidden></div>
     <ol class="rank" id="boardList"></ol>
     <p class="note" id="boardNote">正在读取今日霞榜…</p>
   </section>
@@ -242,7 +245,7 @@
         <h2 class="kicker">04 / 大气剖面</h2>
         <div class="display">从 12 公里高空<br>一路看到地面</div>
       </div>
-      <p class="sec-lede">十一项因素按它们在大气里的真实高度排列。每一层的条长是该项得分，右侧是权重；缺数据的层显示「无数据」并从加权中排除。当前展示的是 <span class="hl" id="profileLabel">—</span>。</p>
+      <p class="sec-lede">十一项因素按它们在大气里的真实高度排列。每一层的条长是该项得分，右侧是权重；缺数据的层显示「无数据」并从加权中排除。云量取自与霞分最接近的那个预报模式。当前展示的是 <span class="hl" id="profileLabel">—</span>。</p>
     </div>
     <div class="layers" id="layers" role="table" aria-label="十一项因素评分"></div>
     <div class="profile-meta" id="profileMeta"></div>
@@ -253,19 +256,19 @@
     <h2 class="kicker">05 / 原理与局限</h2>
     <div class="paper-display">要有幕布，<br>要有缺口，<br><em>还要一点运气。</em></div>
     <div class="paper-grid">
-      <div><b>幕布 30</b><p>中高云是被夕阳从下方点亮的银幕。太薄没东西可烧，太厚光透不进来，30–70% 最好。低云通常难出鲜艳色。</p></div>
-      <div><b>缺口 20</b><p>沿太阳方位角往上游取 50 / 150 / 300 km 三个点。那边晴，光才能照过来：晚霞看西边，朝霞看东边。</p></div>
-      <div><b>空气 13</b><p>AOD 呈倒 U 形，最红点总光学厚度约 0.1——太干净颜色平淡，太脏压暗。雨后洗净是纯加成 0–3 分。</p></div>
-      <div><b>诚实</b><p>这是基于文献的启发式算法，不是官方预报；大烧 / 小烧是待照片校准的操作定义。缺数据就写「无数据」，绝不编造。</p></div>
+      <div><b>幕布 × 缺口 × 低云</b><p>中高云是被夕阳从下方点亮的银幕，30–70% 最好；沿太阳方位往上游取 50 / 150 / 300 km 三点，那边晴光才照得过来；低云会挡住光。三件事缺一样就烧不起来，所以霞分用几何加权：任何一项接近 0，霞分都接近 0——晴空万里不会被算成中烧。</p></div>
+      <div><b>空气 ±15%</b><p>降水、AOD、能见度、PM2.5、露点差、风、CAPE 只调制颜色的鲜艳程度。另给一个 1–7 档的<em>通透度</em>，和云况分开看：云对了、空气浑，霞也是灰的。</p></div>
+      <div><b>5 个模式投票</b><p>云量同时取综合、ECMWF、GFS、ICON、CMA 五家数值模式，各算一遍再加权平均（综合模式权重 2）。各家意见一致才给「把握大」，分歧大就直说没把握。</p></div>
+      <div><b>诚实</b><p>这是基于文献的启发式算法，不是官方预报；分档是待照片校准的操作定义。缺数据就写「无数据」，绝不编造。</p></div>
     </div>
     <div class="paper-cap" id="capacity">
       <div><b>600 次/分钟</b><span>Open-Meteo 免费层速率上限</span></div>
       <div><b>10,000 次/天</b><span>免费层每日上限</span></div>
-      <div><b>约 42 人</b><span>可同时发起全新查询（每次约 14 次调用，估算）</span></div>
-      <div><b>约 350 次</b><span>一次完整霞榜计算，缓存 30 分钟</span></div>
+      <div><b>约 37 人</b><span>每分钟可发起全新查询（每次 3 个请求，计费约 16 次调用，估算）</span></div>
+      <div><b>约 700 次</b><span>一次完整霞榜计算，服务器每天只算一次</span></div>
     </div>
     <div class="paper-foot">
-      <span>≥75 大烧 · 55–74 中烧 · 35–54 小烧 · &lt;35 无烧</span>
+      <span>霞分 ≥80 大烧 · 65 中到大烧 · 50 小到中烧 · 35 小烧 · 20 微烧 · &lt;20 无烧</span>
       <span>Corfidi《The Science of Sunsets》· SOLA 2013 · SkyCandy / SunsetWx / Skyfire</span>
     </div>
   </section>
@@ -276,8 +279,8 @@
   <span>纯静态 · 查询在浏览器端实时发出 · 不收集任何个人数据</span>
 </footer>
 
-<script src="algo.js?v=3200ff7e"></script>
-<script src="api.js?v=4738fd89"></script>
-<script src="app.js?v=c939f020"></script>
+<script src="algo.js?v=0ca251b0"></script>
+<script src="api.js?v=dfd80cae"></script>
+<script src="app.js?v=6a55a592"></script>
 </body>
 </html>

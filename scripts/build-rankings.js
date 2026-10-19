@@ -24,7 +24,9 @@ if (!out) {
 // 前端榜单只用到这些字段，其余明细（11 项评分、原始输入）不发布
 function slim(r) {
   return {
-    city: r.city, score: r.score, grade: r.grade, conf: r.conf,
+    city: r.city, score: r.score, grade: r.grade, level: r.level, conf: r.conf,
+    clarity: r.clarity || null,
+    models: r.ensemble ? r.ensemble.members.map((m) => [m.label, m.score]) : null,
     epoch: r.epoch, offsetSec: r.offsetSec, tzName: r.tzName, day: r.day
   };
 }
@@ -36,8 +38,9 @@ function slim(r) {
     throw new Error(`有效城市太少（全球 ${data.global.length}、中国 ${data.china.length}），保留旧榜单`);
   }
   const payload = {
-    version: 1,
+    version: 2,
     computedAt: data.computedAt,
+    stats: data.stats,
     global: data.global.map(slim),
     china: data.china.map(slim)
   };

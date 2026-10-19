@@ -69,7 +69,7 @@ require('../api.js');
 require('../app.js');
 const API = globalThis.SunsetAPI;
 
-const VERDICTS = ['有一点·小烧', '有·中烧', '有大烧', '基本没有'];
+const VERDICTS = ['大烧', '中到大烧', '小到中烧', '有一点·小烧', '微烧', '基本没有'];
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
 async function main() {
