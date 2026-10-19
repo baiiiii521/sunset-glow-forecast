@@ -337,7 +337,7 @@
         '<span class="tl-card-d">' + b.ph.short + '</span></button>';
     }).join('');
     $$('.tl-card', $('#tlLegend')).forEach(function (btn) {
-      btn.addEventListener('click', function () { setT(parseInt(btn.getAttribute('data-mid'), 10)); });
+      btn.addEventListener('click', function () { setT(parseInt(btn.getAttribute('data-mid'), 10), true); });
     });
 
     $('#tlCaption').textContent = '以 ' + EVENT_LABEL[ev.day + '|' + ev.type] + ' ' + API.fmtTime(ev.epoch, data.offsetSec) +
@@ -345,7 +345,8 @@
 
     state.tl = { ev: ev, elevs: elevs, epochAt: epochAt, skyKeys: skyKeys, lightKeys: lightKeys, k: k };
     paintCloudsTl();
-    updateTimeline();
+    state.tlCloudX = null;
+    updateTimeline(true);
   }
 
   function paintCloudsTl() {
@@ -354,7 +355,9 @@
     if (el) el.setAttribute('values', covMatrix(4, cov));
   }
 
-  function updateTimeline() {
+  // force=false 时（拖动 / 播放中）云层每移动 4 分钟才重绘一次：
+  // 改 SVG 滤镜的光色会让整片分形噪声重新栅格化，是手机上卡顿的主因
+  function updateTimeline(force) {
     var tl = state.tl;
     if (!tl) return;
     var x = state.t, e = tl.elevs[x], d = -e, ev = tl.ev;
@@ -377,11 +380,14 @@
     var glint = $('#tlGlint');
     glint.style.opacity = sunOp;
     glint.style.backgroundImage = 'repeating-linear-gradient(180deg, ' + sunColor + ' 0 2px, transparent 2px 9px)';
-    paintClouds('gTl', light, mixHex(light, sky[1], 0.45), mixHex(sky[0], '#000000', 0.2), light, null);
-    var lt = document.getElementById('lightTl');
-    if (lt) lt.setAttribute('lighting-color', light);
-    var ld = document.getElementById('lightTlDir');
-    if (ld) ld.setAttribute('elevation', clamp(16 + e * 2, 6, 40).toFixed(1));
+    if (force || state.tlCloudX === null || Math.abs(x - state.tlCloudX) >= 4) {
+      state.tlCloudX = x;
+      paintClouds('gTl', light, mixHex(light, sky[1], 0.45), mixHex(sky[0], '#000000', 0.2), light, null);
+      var lt = document.getElementById('lightTl');
+      if (lt) lt.setAttribute('lighting-color', light);
+      var ld = document.getElementById('lightTlDir');
+      if (ld) ld.setAttribute('elevation', clamp(16 + e * 2, 6, 40).toFixed(1));
+    }
 
     $('#tlClock').textContent = API.fmtTime(tl.epochAt(x), state.data.offsetSec);
     $('#tlElev').textContent = '太阳高度 ' + (e >= 0 ? '+' : '−') + Math.abs(e).toFixed(1) + '°';
@@ -400,7 +406,42 @@
     });
   }
 
-  function setT(x) { state.t = clamp(x, 0, 150); updateTimeline(); }
+  // 同一帧内多次 setT 只渲染一次
+  var tlRaf = 0;
+  function setT(x, force) {
+    state.t = clamp(Math.round(x), 0, 150);
+    if (force) { updateTimeline(true); return; }
+    if (tlRaf) return;
+    tlRaf = requestAnimationFrame(function () { tlRaf = 0; updateTimeline(false); });
+  }
+
+  // 指针拖动：鼠标、触屏统一走 pointer 事件；.scrub 设了 touch-action: pan-y，
+  // 横向滑动交给这里，竖向仍然滚动页面（浏览器接管时会发 pointercancel）
+  function bindScrub() {
+    var scrub = $('.scrub');
+    var dragging = false;
+    function xFrom(e) {
+      var r = $('#tlBars').getBoundingClientRect();
+      return (e.clientX - r.left) / r.width * 150;
+    }
+    function end() {
+      if (!dragging) return;
+      dragging = false;
+      scrub.classList.remove('dragging');
+      updateTimeline(true);
+    }
+    scrub.addEventListener('pointerdown', function (e) {
+      if (e.button > 0 || !state.tl) return;
+      dragging = true;
+      scrub.classList.add('dragging');
+      try { scrub.setPointerCapture(e.pointerId); } catch (err) { /* 指针已失效时忽略，拖动照常 */ }
+      setT(xFrom(e));
+    });
+    scrub.addEventListener('pointermove', function (e) { if (dragging) setT(xFrom(e)); });
+    scrub.addEventListener('pointerup', end);
+    scrub.addEventListener('pointercancel', end);
+    scrub.addEventListener('lostpointercapture', end);
+  }
 
   function togglePlay() {
     var btn = $('#tlPlay');
@@ -489,7 +530,7 @@
         box.hidden = true;
         $('#searchInput').value = p.name;
         $('#searchInput').blur();
-        setPlace({ name: p.name, admin1: p.admin1, admin2: p.admin2, country: p.country, lat: p.lat, lon: p.lon, timezone: p.timezone || '' });
+        setPlace({ name: p.name, admin1: p.admin1, admin2: p.admin2, country: p.country, lat: p.lat, lon: p.lon, timezone: p.timezone || '' }, 'manual');
       });
     });
   }
@@ -530,7 +571,7 @@
     $$('.fav-go', $('#favBar')).forEach(function (b) {
       b.addEventListener('click', function () {
         var f = favs[parseInt(b.getAttribute('data-idx'), 10)];
-        if (f) setPlace(f);
+        if (f) setPlace(f, 'manual');
       });
     });
     $$('.fav-del', $('#favBar')).forEach(function (b) {
@@ -586,7 +627,7 @@
   }
 
   function goCity(c) {
-    setPlace({ name: c.name, admin1: '', admin2: '', country: c.country, lat: c.lat, lon: c.lon, timezone: '' });
+    setPlace({ name: c.name, admin1: '', admin2: '', country: c.country, lat: c.lat, lon: c.lon, timezone: '' }, 'manual');
     var top = document.getElementById('top');
     if (top && top.scrollIntoView) top.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth' });
   }
@@ -651,14 +692,94 @@
     });
   }
 
+  /* ---------------- 定位 ----------------
+   * 优先用浏览器 GPS / Wi-Fi 定位（仅 HTTPS 或 localhost 可用，会弹授权）；
+   * 不可用、被拒绝或超时时，退回按 IP 估算到城市。
+   * 逆地理编码与 IP 定位都走 BigDataCloud 的免 key 客户端接口。 */
+
+  var GEO_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=zh';
+  var geoBusy = false;
+
+  function geoStatus(text) {
+    var el = $('#geoStatus');
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
+  function reverseGeocode(lat, lon) {
+    var url = GEO_URL + (lat === undefined ? '' : '&latitude=' + lat.toFixed(4) + '&longitude=' + lon.toFixed(4));
+    return API.fetchJSON(url, 10000).then(function (r) {
+      if (typeof r.latitude !== 'number' || typeof r.longitude !== 'number') throw new Error('定位服务没有返回坐标');
+      return {
+        name: r.city || r.locality || r.principalSubdivision || '我的位置',
+        admin1: r.principalSubdivision && r.principalSubdivision !== r.city ? r.principalSubdivision : '',
+        admin2: '', country: r.countryName || '',
+        lat: lat === undefined ? r.latitude : lat,
+        lon: lon === undefined ? r.longitude : lon,
+        timezone: ''
+      };
+    });
+  }
+
+  function browserPosition() {
+    return new Promise(function (resolve, reject) {
+      if (!window.isSecureContext || !navigator.geolocation) { reject(new Error('insecure')); return; }
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      }, reject, { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 });
+    });
+  }
+
+  function locate() {
+    if (geoBusy) return;
+    geoBusy = true;
+    var startSeq = placeSeq;
+    var btn = $('#locateBtn');
+    btn.classList.add('busy');
+    geoStatus('正在定位…');
+    var precise = true;
+    browserPosition().then(function (c) {
+      return reverseGeocode(c.lat, c.lon).catch(function () {
+        return { name: '我的位置', admin1: '', admin2: '', country: '', lat: c.lat, lon: c.lon, timezone: '' };
+      });
+    }, function () {
+      precise = false;
+      return reverseGeocode();
+    }).then(function (place) {
+      // 定位期间用户已经手动换了地点：尊重用户的选择
+      if (placeSeq !== startSeq) { geoStatus(''); return; }
+      geoStatus(precise ? '已定位到你所在位置' : '按网络位置估算（大致到城市）');
+      setPlace(place, 'geo');
+    }).catch(function () {
+      geoStatus('定位失败，可以手动搜索城市');
+    }).then(function () {
+      geoBusy = false;
+      btn.classList.remove('busy');
+    });
+  }
+
+  // 用户第一次点击页面时自动定位一次；用户自己选过地点（搜索 / 收藏 / 榜单）后不再自动覆盖
+  function bindAutoLocate() {
+    if (state.place.source === 'manual') return;
+    function once(e) {
+      document.removeEventListener('pointerdown', once, true);
+      if (e.target.closest && e.target.closest('.search')) return;
+      locate();
+    }
+    document.addEventListener('pointerdown', once, true);
+  }
+
   /* ---------------- 地点切换 ---------------- */
 
   var placeSeq = 0;
 
-  function setPlace(place) {
+  // source：manual（搜索 / 收藏 / 榜单点选）、geo（定位）、default（首访默认）
+  function setPlace(place, source) {
     var seq = ++placeSeq;
+    place.source = source || place.source || 'manual';
     state.place = place;
     state.data = null;
+    if (place.source === 'manual') geoStatus('');
     saveJSON(LS_LAST, place);
     $('#heroScore').textContent = '--';
     $('#heroTitle').textContent = '正在拉取预报…';
@@ -716,7 +837,9 @@
       if (!e.target.closest || !e.target.closest('.search')) $('#searchResults').hidden = true;
     });
     $('#favBtn').addEventListener('click', toggleFav);
+    $('#locateBtn').addEventListener('click', locate);
     $('#tlRange').addEventListener('input', function (e) { setT(parseInt(e.target.value, 10)); });
+    bindScrub();
     $('#tlPlay').addEventListener('click', togglePlay);
     $('#boardLoadBtn').addEventListener('click', loadBoard);
     $('#boardTabs').addEventListener('click', function (e) {
@@ -735,7 +858,8 @@
     if (cached && Date.now() - cached.computedAt < RANK_TTL && cached.global && cached.china) state.rankings = cached;
     renderBoard();
     setInterval(placeTerminator, 60000);
-    setPlace(state.place);
+    setPlace(state.place, state.place.source || 'default');
+    bindAutoLocate();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
