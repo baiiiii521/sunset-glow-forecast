@@ -212,6 +212,7 @@ button { font-family: inherit; }
 .ev-short { font-size: 14px; color: rgba(244,237,228,.92); }
 .ev-meter { position: absolute; left: 22px; right: 22px; bottom: 12px; height: 3px; background: rgba(244,237,228,.2); }
 .ev-meter i { display: block; height: 3px; background: #FFF4E2; }
+.ev-empty { grid-column: 1 / -1; margin: 0; padding: 28px 0; font-size: 15px; color: var(--muted); }
 .ev-skeleton { min-height: 260px; border-radius: 4px; background: linear-gradient(100deg, #15112A 30%, #1E1838 50%, #15112A 70%); background-size: 300% 100%; animation: sheen 1.6s linear infinite; }
 
 /* ---------------- 02 天色时间轴 ---------------- */

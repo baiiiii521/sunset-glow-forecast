@@ -111,7 +111,7 @@
   /* ---------------- 状态 ---------------- */
 
   var state = {
-    place: { name: '胡志明市', admin1: '', admin2: '', country: '越南', lat: 10.8231, lon: 106.6297, timezone: 'Asia/Ho_Chi_Minh' },
+    place: null, // 还没定位、也没有上次的地点时为空：首屏留白，等定位完成再拉预报
     data: null,
     sel: 0,
     rankings: null,
@@ -125,6 +125,9 @@
   var LS_LAST = 'sg_last_place_v1';
   var LS_RANK = 'sg_rankings_v1';
   var RANK_TTL = 30 * 60 * 1000;
+  // 服务器每天北京时间 15:00 用 scripts/build-rankings.js 算好的榜单；超过 36 小时视为过期
+  var DAILY_RANK_URL = 'data/rankings.json';
+  var DAILY_RANK_MAX_AGE = 36 * 3600 * 1000;
 
   function loadJSON(key, fallback) {
     try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
@@ -191,8 +194,33 @@
     setVar($('#heroScore'), '--glow', p.glow);
   }
 
+  // 首访且还没拿到位置：不显示任何默认城市，提示用户点一下页面定位
+  function renderEmptyHero() {
+    $('#cityName').textContent = '';
+    $('#placeMeta').textContent = '';
+    $('#fetchTime').textContent = '';
+    $('#heroEvent').textContent = '等待定位';
+    $('.score-line').hidden = true;
+    $('#heroTitle').textContent = '你在哪里看霞？';
+    $('#heroAction').textContent = '';
+    $('#heroReason').textContent = '点一下页面任意位置，或点搜索框旁的「定位」，就会显示你所在位置的朝霞晚霞预报。也可以直接搜索城市。';
+    $('#heroWindow').textContent = '';
+    $('#heroBearing').textContent = '';
+    $('#heroConf').textContent = '';
+    $('#heroGrade').textContent = '';
+    $('#events').innerHTML = '<p class="ev-empty">定位或搜索城市后，这里显示今明两日四场预报。</p>';
+    $('#layers').innerHTML = '<p class="ev-empty">定位后显示 11 项因素的分层评分。</p>';
+    $('#profileMeta').innerHTML = '';
+    $('#profileLabel').textContent = '—';
+    $('#tlName').textContent = '';
+    $('#tlDesc').textContent = '定位后可以拖动时间轴，看当地天色一点点变化。';
+    renderFavButton();
+  }
+
   function renderHero() {
     var data = state.data, p = state.place;
+    if (!p) { renderEmptyHero(); return; }
+    $('.score-line').hidden = false;
     $('#cityName').textContent = p.name;
     $('#placeMeta').textContent = [p.admin1, p.country].filter(Boolean).join(' · ') +
       (p.admin1 || p.country ? ' · ' : '') + Math.abs(p.lat).toFixed(2) + '°' + (p.lat >= 0 ? 'N' : 'S') + ' ' +
@@ -557,6 +585,8 @@
     return getFavs().some(function (f) { return Math.abs(f.lat - p.lat) < 0.01 && Math.abs(f.lon - p.lon) < 0.01; });
   }
   function renderFavButton() {
+    $('#favBtn').hidden = !state.place;
+    if (!state.place) return;
     var on = isFav(state.place);
     $('#favBtn').setAttribute('aria-pressed', String(on));
     $('#favLabel').textContent = on ? '已收藏' : '收藏此地';
@@ -586,6 +616,7 @@
   }
 
   function toggleFav() {
+    if (!state.place) return;
     var favs = getFavs();
     var idx = -1;
     favs.forEach(function (f, i) {
@@ -651,7 +682,7 @@
       var c = r.city;
       return '<li><button class="rank-row" type="button" data-i="' + i + '">' +
         '<span class="rank-no">' + (i < 9 ? '0' : '') + (i + 1) + '</span>' +
-        '<span class="rank-city"><b>' + esc(c.name) + '</b><span>' + esc(c.country) + ' · ' + (r.day === 'today' ? '今日' : '明日') + '晚霞 ' + API.fmtTime(r.epoch, r.offsetSec || 0) + ' · 置信度 ' + esc(r.conf) + '</span></span>' +
+        '<span class="rank-city"><b>' + esc(c.name) + '</b><span>' + esc(c.country) + ' · ' + API.fmtDate(r.epoch, r.offsetSec || 0) + ' ' + API.fmtTime(r.epoch, r.offsetSec || 0) + ' 晚霞 · 置信度 ' + esc(r.conf) + '</span></span>' +
         '<span class="rank-grade">' + esc(r.grade) + '</span>' +
         '<span class="rank-score">' + r.score + '</span></button></li>';
     }).join('') || '<li class="note">暂无数据</li>';
@@ -663,8 +694,22 @@
     }).join('');
     $('#tickerInner').innerHTML = items + items;
     $('#ticker').hidden = false;
-    $('#boardNote').textContent = '榜单计算于 ' + new Date(data.computedAt).toLocaleTimeString('zh-CN', { hour12: false }) +
-      ' · 全球 36 城 + 中国 34 城，同一算法计算下一场晚霞，各取 TOP 10 · 30 分钟缓存';
+    var when = new Date(data.computedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    $('#boardNote').textContent = (state.rankingsDaily
+      ? '每天北京时间 15:00 由服务器统一计算一次 · 本次更新于 ' + when + '（北京时间）'
+      : '实时计算于 ' + when + '（北京时间）· 30 分钟缓存') +
+      ' · 全球 36 城 + 中国 34 城，同一算法计算下一场晚霞，各取 TOP 10';
+    $('#boardLoadBtn').hidden = !!state.rankingsDaily;
+  }
+
+  // 读服务器每天生成的榜单；拿不到或过期就返回 null，页面退回到按钮手动实时计算
+  function loadDailyBoard() {
+    var bucket = Math.floor(Date.now() / 3600000); // 每小时换一次查询串，避开中间缓存
+    return API.fetchJSON(DAILY_RANK_URL + '?h=' + bucket, 10000).then(function (d) {
+      var ok = d && Array.isArray(d.global) && Array.isArray(d.china) && d.global.length && d.china.length &&
+        typeof d.computedAt === 'number' && Date.now() - d.computedAt < DAILY_RANK_MAX_AGE;
+      return ok ? d : null;
+    }).catch(function () { return null; });
   }
 
   function loadBoard() {
@@ -760,7 +805,7 @@
 
   // 用户第一次点击页面时自动定位一次；用户自己选过地点（搜索 / 收藏 / 榜单）后不再自动覆盖
   function bindAutoLocate() {
-    if (state.place.source === 'manual') return;
+    if (state.place && state.place.source === 'manual') return;
     function once(e) {
       document.removeEventListener('pointerdown', once, true);
       if (e.target.closest && e.target.closest('.search')) return;
@@ -823,7 +868,8 @@
     paintHero({ score: 60 });
     renderFavs();
     var saved = loadJSON(LS_LAST, null);
-    if (saved && saved.name && typeof saved.lat === 'number') state.place = saved;
+    // 只恢复用户自己选的或定位得到的地点；旧版本存下的默认城市（胡志明市）不再沿用
+    if (saved && saved.name && typeof saved.lat === 'number' && (saved.source === 'manual' || saved.source === 'geo')) state.place = saved;
 
     $('#searchInput').addEventListener('input', function () {
       clearTimeout(searchTimer);
@@ -854,11 +900,20 @@
       renderBoard();
     });
 
-    var cached = loadJSON(LS_RANK, null);
-    if (cached && Date.now() - cached.computedAt < RANK_TTL && cached.global && cached.china) state.rankings = cached;
     renderBoard();
+    loadDailyBoard().then(function (daily) {
+      if (daily) {
+        state.rankings = daily;
+        state.rankingsDaily = true;
+      } else {
+        var cached = loadJSON(LS_RANK, null);
+        if (cached && Date.now() - cached.computedAt < RANK_TTL && cached.global && cached.china) state.rankings = cached;
+      }
+      renderBoard();
+    });
     setInterval(placeTerminator, 60000);
-    setPlace(state.place, state.place.source || 'default');
+    if (state.place) setPlace(state.place, state.place.source || 'manual');
+    else renderEmptyHero();
     bindAutoLocate();
   }
 

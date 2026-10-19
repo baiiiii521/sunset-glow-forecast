@@ -50,6 +50,10 @@ global.localStorage = {
   getItem(k) { return this._m.has(k) ? this._m.get(k) : null; },
   setItem(k, v) { this._m.set(k, String(v)); }
 };
+// 首访没有地点时首屏留白；这里预置一个用户选过的地点，跑完整加载流程
+global.localStorage.setItem('sg_last_place_v1', JSON.stringify({
+  name: '胡志明市', admin1: '', admin2: '', country: '越南', lat: 10.8231, lon: 106.6297, timezone: '', source: 'manual'
+}));
 let rafCount = 0;
 global.requestAnimationFrame = (cb) => {
   if (rafCount < 3) { rafCount++; setTimeout(() => cb(Date.now()), 0); }
