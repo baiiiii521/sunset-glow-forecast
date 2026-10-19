@@ -38,6 +38,16 @@ python3 -m http.server 8000
 # 然后打开 http://localhost:8000
 ```
 
+## 更新静态资源时
+
+`index.html` 里的 css / js 引用带内容版本号（`app.js?v=<哈希>`），所以服务器可以对它们长缓存，而文件一改，访客立刻拿到新版。改完 `styles.css` / `app.js` / `algo.js` / `api.js` 后、提交前跑一次：
+
+```bash
+node scripts/stamp-assets.js
+```
+
+`node scripts/stamp-assets.js --check` 只做检查，版本号过期时退出码为 1。
+
 ## 部署
 
 ### GitHub Pages
