@@ -112,7 +112,7 @@
       <div class="hero-main">
         <div class="hero-head">
           <div class="hero-meta"><span id="placeMeta"></span><span id="fetchTime"></span></div>
-          <h1 class="city-name" id="cityName">胡志明市</h1>
+          <h1 class="city-name" id="cityName"></h1>
           <div class="hero-chips">
             <button id="favBtn" class="chip-btn" type="button" aria-pressed="false">
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>
@@ -228,11 +228,11 @@
       <div class="terminator" id="terminator" aria-hidden="true"><span>此刻日落线</span></div>
       <div id="boardDots"></div>
       <span class="world-l" id="worldL">180°W</span><span class="world-r" id="worldR">180°E</span>
-      <div class="world-empty" id="worldEmpty">点击「加载今日晚霞榜」，70 座城市会落在这条带上</div>
+      <div class="world-empty" id="worldEmpty">今日霞榜加载后，TOP 10 城市会落在这条带上</div>
     </div>
     <div class="ticker" id="ticker" aria-hidden="true" hidden><div class="ticker-inner" id="tickerInner"></div></div>
     <ol class="rank" id="boardList"></ol>
-    <p class="note" id="boardNote">全球 36 城 + 中国 34 城，同一算法批量计算下一场晚霞。按需加载（约 350 次 API 调用），结果缓存 30 分钟。</p>
+    <p class="note" id="boardNote">正在读取今日霞榜…</p>
   </section>
 
   <!-- ================= 04 大气剖面 ================= -->
