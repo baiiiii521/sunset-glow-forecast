@@ -330,6 +330,18 @@ button { font-family: inherit; }
 .ticker { overflow: hidden; margin: 28px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 14px 0; }
 .ticker-inner { display: flex; gap: 48px; width: max-content; font-family: var(--italic); font-style: italic; font-size: 28px; color: #FFE2B0; white-space: nowrap; animation: marquee 60s linear infinite; }
 .ticker-inner b { font-family: var(--mono); font-style: normal; font-size: 18px; color: #FF6A2C; margin-left: 6px; }
+/* 霞榜：全部参评城市的六档分布 */
+.board-summary { margin-top: 28px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
+.board-summary .sum-head { margin: 0 0 10px; letter-spacing: .04em; }
+.board-summary .sum-head b { color: var(--cream); font-weight: 600; }
+.sum-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; }
+.sum-seg { min-width: 0; transition: flex .8s ease; }
+.sum-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; }
+.sum-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sum-legend b { color: var(--cream); font-weight: 500; }
+.sum-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.lv0 { background: #3E4452; } .lv1 { background: #7A6E8E; } .lv2 { background: #B58E80; }
+.lv3 { background: #E8805A; } .lv4 { background: #FF5A1F; } .lv5 { background: #FFC36B; }
 .rank { list-style: none; margin: 28px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); column-gap: 48px; }
 .rank-row {
   display: grid; grid-template-columns: 56px minmax(0, 1fr) auto auto; align-items: center; gap: 16px; width: 100%;

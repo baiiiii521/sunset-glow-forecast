@@ -1,8 +1,9 @@
 /* ============================================================
  * 全球朝霞晚霞预测 · 数据层（SunsetAPI）
  * 全部走浏览器端 fetch，直调 Open-Meteo 免费 API（支持 CORS，无需 key）。
- * 一次全新地点查询 = 1 本地预报 + 12 上游预报（4 场 × 3 点）+ 1 空气质量 = 14 次调用。
- * 榜单每城 = 1 本地预报 + 3 上游 + 1 空气质量 = 5 次调用。
+ * 一次全新地点查询 = 1 本地预报 + 1 空气质量 + 1 多模式云量（本地 + 朝/晚霞各 3 个上游点）= 3 个请求，
+ * 按 Open-Meteo 计费口径（多点、超 10 个变量会折算成多次）约 16 次调用。
+ * 榜单每城 = 1 本地预报 + 1 空气质量 + 1 多模式云量（本地 + 3 个上游点）= 3 个请求，约 10 次调用。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -153,23 +154,104 @@
       encodeURIComponent(tz) + '&forecast_days=3';
   }
 
-  // 抓上游三点预报（50/150/300km），单个失败不阻塞整体
-  function fetchUpstream(lat, lon, bearing, tz) {
-    var jobs = [50, 150, 300].map(function (dist) {
-      var dest = A.destination(lat, lon, bearing, dist);
-      return fetchJSON(forecastURL(dest.lat, dest.lon, tz)).catch(function () { return null; });
-    });
-    return Promise.all(jobs).then(function (arr) { return arr.filter(function (x) { return !!x; }); });
+  /* ---------------- 多模式集合 ----------------
+   * 同一时刻各家数值模式的云量常常差很多（2026-10-19 西安日落：ECMWF 中云 54%、
+   * GFS 低云 47%、CMA 几乎全晴）。只用一个模式会把这种不确定性藏起来，
+   * 所以云量（本地 + 上游各点）一次请求取 5 个模式，每个模式各算一遍霞分再加权平均（综合模式权重 2）。
+   * 降水、能见度、露点、风、CAPE 仍用综合模式（best_match），空气质量用 CAMS。 */
+  var MODELS = [
+    ['best_match', '综合'], ['ecmwf_ifs025', 'ECMWF'], ['gfs_seamless', 'GFS'],
+    ['icon_seamless', 'ICON'], ['cma_grapes_global', 'CMA']
+  ];
+  var CLOUD_VARS = ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high'];
+
+  // points: [{lat, lon}]，一次请求返回所有点 × 所有模式
+  function ensembleURL(points, tz) {
+    return FC_URL + '?latitude=' + points.map(function (p) { return p.lat.toFixed(4); }).join(',') +
+      '&longitude=' + points.map(function (p) { return p.lon.toFixed(4); }).join(',') +
+      '&hourly=' + CLOUD_VARS.join(',') + '&models=' + MODELS.map(function (m) { return m[0]; }).join(',') +
+      '&timezone=' + encodeURIComponent(tz) + '&forecast_days=3';
   }
 
-  // 对一次事件评分（本地预报 + 空气质量已抓好）
-  function scoreEvent(fc, aq, eventEpoch, bearing, offsetSec, lat, lon, tz) {
-    return fetchUpstream(lat, lon, bearing, tz).then(function (ups) {
-      var res = A.evaluate(fc, aq, ups, eventEpoch, bearing, offsetSec);
-      res.bearing = bearing;
-      res.epoch = eventEpoch;
-      return res;
+  function fetchEnsemble(points, tz) {
+    var url = ensembleURL(points, tz);
+    return fetchJSON(url).catch(function () {
+      return new Promise(function (r) { setTimeout(r, 1500); }).then(function () { return fetchJSON(url); });
+    }).then(function (j) { return Array.isArray(j) ? j : [j]; }).catch(function () { return null; });
+  }
+
+  // 从多模式返回里取出某个模式、某个点的云量，按 baseTimes（主预报的时间轴）对齐
+  function memberHourly(loc, model, baseTimes) {
+    if (!loc || !loc.hourly) return null;
+    var h = loc.hourly, pos = {};
+    (h.time || []).forEach(function (t, k) { pos[t] = k; });
+    var out = { time: baseTimes };
+    var any = false;
+    CLOUD_VARS.forEach(function (v) {
+      var arr = h[v + '_' + model];
+      out[v] = baseTimes.map(function (t) {
+        var k = pos[t];
+        var x = (k === undefined || !arr) ? null : arr[k];
+        if (x !== null && x !== undefined) any = true;
+        return x === undefined ? null : x;
+      });
     });
+    return any ? out : null;
+  }
+
+  // 本地事件时刻云量是否齐全（某些模式在部分地区 / 时效没有数据）
+  function hasCloudAt(h, i) {
+    return ['cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high'].every(function (v) {
+      return h[v] && h[v][i] !== null && h[v][i] !== undefined;
+    });
+  }
+
+  function shallowCopy(o) { var r = {}; for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) r[k] = o[k]; return r; }
+
+  /**
+   * 对一次事件做集合评分。
+   * ens: fetchEnsemble 的结果（0 号是本地点，upIdx 指向这次事件的三个上游点），为 null 时退回单模式、无上游。
+   */
+  function scoreEvent(fc, aq, eventEpoch, bearing, offsetSec, ens, upIdx) {
+    var res;
+    if (ens && ens[0]) {
+      var baseTimes = fc.hourly.time || [];
+      var times = baseTimes.map(function (t) { return A.toEpoch(t, offsetSec); });
+      var i = A.idxFloor(times, eventEpoch);
+      var members = MODELS.map(function (m) {
+        var lh = memberHourly(ens[0], m[0], baseTimes);
+        if (!lh || !hasCloudAt(lh, i)) return null;
+        var hourly = shallowCopy(fc.hourly);
+        CLOUD_VARS.forEach(function (v) { hourly[v] = lh[v]; });
+        var fcM = { hourly: hourly, utc_offset_seconds: offsetSec };
+        var ups = upIdx.map(function (k) {
+          var uh = memberHourly(ens[k], m[0], baseTimes);
+          return uh ? { hourly: uh, utc_offset_seconds: offsetSec } : null;
+        }).filter(function (x) { return !!x; });
+        return { model: m[0], label: m[1], weight: m[0] === 'best_match' ? 2 : 1, res: A.evaluate(fcM, aq, ups, eventEpoch, bearing, offsetSec) };
+      });
+      res = A.combine(members);
+    }
+    if (!res) {
+      res = A.evaluate(fc, aq, [], eventEpoch, bearing, offsetSec);
+      res.ensemble = null;
+      if (res.conf === '高') res.conf = '中';
+    }
+    res.bearing = bearing;
+    res.epoch = eventEpoch;
+    return res;
+  }
+
+  // 一个点 + 若干方位上游点（50/150/300km），返回 [点列表, 每个方位对应的上游下标]
+  function ensemblePoints(lat, lon, bearings) {
+    var pts = [{ lat: lat, lon: lon }];
+    var idx = bearings.map(function (b) {
+      return [50, 150, 300].map(function (dist) {
+        pts.push(A.destination(lat, lon, b, dist));
+        return pts.length - 1;
+      });
+    });
+    return { points: pts, upIdx: idx };
   }
 
   // 计算一个地点的今明两日四场预报
@@ -191,23 +273,26 @@
         { day: 'tomorrow', type: 'sunrise', timeStr: daily.sunrise[dayIdx[tomorrowStr]], dateStr: tomorrowStr },
         { day: 'tomorrow', type: 'sunset', timeStr: daily.sunset[dayIdx[tomorrowStr]], dateStr: tomorrowStr }
       ];
-      return fetchJSON(aqURL(lat, lon, tzName)).catch(function () { return null; }).then(function (aq) {
-        var jobs = specs.map(function (sp) {
-          var epoch = A.toEpoch(sp.timeStr, offsetSec);
-          var parts = zonedParts(epoch, offsetSec);
-          var doy = dayOfYear(parts.y, parts.m, parts.day);
-          var bearing = sp.type === 'sunset'
-            ? A.sunsetBearing(lat, doy)
-            : A.sunriseBearing(lat, doy);
-          return scoreEvent(fc, aq, epoch, bearing, offsetSec, lat, lon, tzName).then(function (res) {
-            res.day = sp.day;
-            res.type = sp.type;
-            return res;
-          });
+      specs.forEach(function (sp) {
+        sp.epoch = A.toEpoch(sp.timeStr, offsetSec);
+        var parts = zonedParts(sp.epoch, offsetSec);
+        var doy = dayOfYear(parts.y, parts.m, parts.day);
+        sp.bearing = sp.type === 'sunset' ? A.sunsetBearing(lat, doy) : A.sunriseBearing(lat, doy);
+      });
+      // 今明两天同类事件方位角只差 <0.5°，上游点共用（朝霞一组、晚霞一组），整地点 1 次请求
+      var ep = ensemblePoints(lat, lon, [specs[0].bearing, specs[1].bearing]);
+      return Promise.all([
+        fetchJSON(aqURL(lat, lon, tzName)).catch(function () { return null; }),
+        fetchEnsemble(ep.points, tzName)
+      ]).then(function (pair) {
+        var aq = pair[0], ens = pair[1];
+        var events = specs.map(function (sp) {
+          var res = scoreEvent(fc, aq, sp.epoch, sp.bearing, offsetSec, ens, ep.upIdx[sp.type === 'sunrise' ? 0 : 1]);
+          res.day = sp.day;
+          res.type = sp.type;
+          return res;
         });
-        return Promise.all(jobs).then(function (events) {
-          return { tzName: tzName, offsetSec: offsetSec, fetchedAt: Date.now(), events: events };
-        });
+        return { tzName: tzName, offsetSec: offsetSec, fetchedAt: Date.now(), events: events };
       });
     });
   }
@@ -231,8 +316,12 @@
       var epoch = A.toEpoch(sunsetStr, offsetSec);
       var parts = zonedParts(epoch, offsetSec);
       var bearing = A.sunsetBearing(city.lat, dayOfYear(parts.y, parts.m, parts.day));
-      return fetchJSON(aqURL(city.lat, city.lon, tzName)).catch(function () { return null; }).then(function (aq) {
-        return scoreEvent(fc, aq, epoch, bearing, offsetSec, city.lat, city.lon, tzName).then(function (res) {
+      var ep = ensemblePoints(city.lat, city.lon, [bearing]);
+      return Promise.all([
+        fetchJSON(aqURL(city.lat, city.lon, tzName)).catch(function () { return null; }),
+        fetchEnsemble(ep.points, tzName)
+      ]).then(function (pair) {
+        return Promise.resolve(scoreEvent(fc, pair[0], epoch, bearing, offsetSec, pair[1], ep.upIdx[0])).then(function (res) {
           res.city = city;
           res.day = useToday ? 'today' : 'tomorrow';
           res.type = 'sunset';
@@ -360,9 +449,19 @@
       runBatch(GLOBAL_CITIES, 6),
       runBatch(CHINA_CITIES, 6)
     ]).then(function (pair) {
-      var g = sortBoard(pair[0].filter(function (r) { return !r.failed; })).slice(0, 10);
-      var c = sortBoard(pair[1].filter(function (r) { return !r.failed; })).slice(0, 10);
-      return { global: g, china: c, computedAt: Date.now() };
+      var okG = pair[0].filter(function (r) { return !r.failed; });
+      var okC = pair[1].filter(function (r) { return !r.failed; });
+      function counts(list) {
+        var c = [0, 0, 0, 0, 0, 0];
+        list.forEach(function (r) { c[typeof r.level === 'number' ? r.level : A.levelOf(r.score)]++; });
+        return { counts: c };
+      }
+      return {
+        global: sortBoard(okG).slice(0, 10),
+        china: sortBoard(okC).slice(0, 10),
+        stats: { global: counts(okG), china: counts(okC) },
+        computedAt: Date.now()
+      };
     });
   }
 
@@ -374,7 +473,7 @@
     evaluatePlace: evaluatePlace, evaluateNextSunset: evaluateNextSunset,
     loadRankings: loadRankings, sortBoard: sortBoard,
     GLOBAL_CITIES: GLOBAL_CITIES, CHINA_CITIES: CHINA_CITIES,
-    forecastURL: forecastURL, aqURL: aqURL
+    forecastURL: forecastURL, aqURL: aqURL, ensembleURL: ensembleURL, MODELS: MODELS
   };
   global.SunsetAPI = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

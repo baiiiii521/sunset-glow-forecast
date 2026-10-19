@@ -47,7 +47,11 @@
 
   /* ---------------- 结论映射 ---------------- */
 
-  var BOUNDS = [35, 55, 75];
+  var BOUNDS = A.LEVEL_BOUNDS;
+
+  function levelOfEv(ev) {
+    return typeof ev.level === 'number' ? ev.level : A.levelOf(ev.score);
+  }
 
   function verdictOf(ev) {
     var score = ev.rawScore !== undefined ? ev.rawScore : ev.score;
@@ -57,15 +61,22 @@
       if (d < nd) { nd = d; nearest = b; }
     });
     var dir = score < nearest ? 'up' : (score > nearest ? 'down' : 'flat');
+    var lv = levelOfEv(ev);
     var title, action;
-    if (ev.grade === '大烧') { title = '有大烧'; action = '值得专门去看'; }
-    else if (ev.grade === '中烧') {
-      title = '有·中烧';
+    if (lv === 5) { title = '大烧'; action = '值得专门去看'; }
+    else if (lv === 4) {
+      title = '中到大烧';
       action = (ev.conf === '高') ? '值得专门去看'
-        : (dir === 'up' ? '值得去看，可能比这更好' : '顺便看看就行，可能比这更差');
-    } else if (ev.grade === '小烧') {
+        : (dir === 'up' ? '值得去看，可能比这更好' : '值得去看，但各家预报有分歧');
+    } else if (lv === 3) {
+      title = '小到中烧';
+      action = (dir === 'up') ? '有空就去看，可能比这更好' : '顺便看看就行';
+    } else if (lv === 2) {
       title = '有一点·小烧';
-      action = (dir === 'up') ? '顺便看看就行，可能比这更好' : '顺便看看就行，别专门跑一趟';
+      action = '顺便看看就行，别专门跑一趟';
+    } else if (lv === 1) {
+      title = '微烧';
+      action = '云边可能泛点淡色，不必等';
     } else { title = '基本没有'; action = '不用等了'; }
     var confText;
     if (ev.conf === '高') confText = '把握较大';
@@ -92,9 +103,10 @@
    * near/mid/far/deep：云底从靠近太阳到远处的颜色；light：从地平线下照亮云底的光色；
    * covHi/covLo：云量阈值（越接近 0 云越密）。无烧时是厚重的灰云。 */
   function palette(score) {
-    if (score >= 75) return { bg: 'linear-gradient(180deg, #1A0C38 0%, #3C1450 30%, #8A2048 55%, #E0482A 80%, #FFB25A 100%)', core: '#FF9A3A', glow: 'rgba(255,110,40,.85)', near: '#FFE09A', mid: '#FF5A22', far: '#7A1A58', deep: '#3A1240', light: '#FFB070', covHi: -1.75, covLo: -2.35, ray: 'rgba(255,190,120,.22)', rayOp: 1, water: 'linear-gradient(180deg, #8A2E30 0%, #3A1430 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #5B1250 0%, #C42A3A 55%, #FF6A2C 100%)' };
-    if (score >= 55) return { bg: 'linear-gradient(180deg, #161440 0%, #33285E 32%, #7A3E68 58%, #D06A5A 82%, #F4B888 100%)', core: '#FFB060', glow: 'rgba(255,150,90,.65)', near: '#FFD2A0', mid: '#E2685E', far: '#4A2A6E', deep: '#28204A', light: '#FFC4A0', covHi: -1.6, covLo: -2.3, ray: 'rgba(255,200,150,.16)', rayOp: 0.8, water: 'linear-gradient(180deg, #6A3248 0%, #2A1838 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #4A2A6E 0%, #A84A6A 60%, #E8805A 100%)' };
-    if (score >= 35) return { bg: 'linear-gradient(180deg, #121836 0%, #2A3560 38%, #5E5E80 64%, #A88E8E 86%, #DCC0A4 100%)', core: '#F4CFA4', glow: 'rgba(240,200,160,.45)', near: '#F0D6BC', mid: '#A88496', far: '#33395E', deep: '#20243E', light: '#E8D6CC', covHi: -2.15, covLo: -2.7, ray: 'rgba(240,220,200,.1)', rayOp: 0.55, water: 'linear-gradient(180deg, #4A4458 0%, #1E1C30 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #33406A 0%, #7A6E8E 60%, #B58E80 100%)' };
+    var lv = A.levelOf(score);
+    if (lv >= 4) return { bg: 'linear-gradient(180deg, #1A0C38 0%, #3C1450 30%, #8A2048 55%, #E0482A 80%, #FFB25A 100%)', core: '#FF9A3A', glow: 'rgba(255,110,40,.85)', near: '#FFE09A', mid: '#FF5A22', far: '#7A1A58', deep: '#3A1240', light: '#FFB070', covHi: -1.75, covLo: -2.35, ray: 'rgba(255,190,120,.22)', rayOp: 1, water: 'linear-gradient(180deg, #8A2E30 0%, #3A1430 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #5B1250 0%, #C42A3A 55%, #FF6A2C 100%)' };
+    if (lv === 3) return { bg: 'linear-gradient(180deg, #161440 0%, #33285E 32%, #7A3E68 58%, #D06A5A 82%, #F4B888 100%)', core: '#FFB060', glow: 'rgba(255,150,90,.65)', near: '#FFD2A0', mid: '#E2685E', far: '#4A2A6E', deep: '#28204A', light: '#FFC4A0', covHi: -1.6, covLo: -2.3, ray: 'rgba(255,200,150,.16)', rayOp: 0.8, water: 'linear-gradient(180deg, #6A3248 0%, #2A1838 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #4A2A6E 0%, #A84A6A 60%, #E8805A 100%)' };
+    if (lv === 2) return { bg: 'linear-gradient(180deg, #121836 0%, #2A3560 38%, #5E5E80 64%, #A88E8E 86%, #DCC0A4 100%)', core: '#F4CFA4', glow: 'rgba(240,200,160,.45)', near: '#F0D6BC', mid: '#A88496', far: '#33395E', deep: '#20243E', light: '#E8D6CC', covHi: -2.15, covLo: -2.7, ray: 'rgba(240,220,200,.1)', rayOp: 0.55, water: 'linear-gradient(180deg, #4A4458 0%, #1E1C30 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #33406A 0%, #7A6E8E 60%, #B58E80 100%)' };
     return { bg: 'linear-gradient(180deg, #14171F 0%, #242936 40%, #3C414E 70%, #575C68 100%)', core: '#C4C6CC', glow: 'rgba(190,195,205,.25)', near: '#8C909A', mid: '#5C606C', far: '#30343E', deep: '#22252E', light: '#A0A4AE', covHi: -1.25, covLo: -1.7, ray: 'rgba(200,205,215,.04)', rayOp: 0.2, water: 'linear-gradient(180deg, #34384A 0%, #181A26 45%, #0B0918 100%)', tile: 'linear-gradient(160deg, #262C3A 0%, #3E4452 60%, #555B68 100%)' };
   }
 
@@ -123,7 +135,7 @@
 
   var LS_FAV = 'sg_favorites_v1';
   var LS_LAST = 'sg_last_place_v1';
-  var LS_RANK = 'sg_rankings_v1';
+  var LS_RANK = 'sg_rankings_v2';
   var RANK_TTL = 30 * 60 * 1000;
   // 服务器每天北京时间 15:00 用 scripts/build-rankings.js 算好的榜单；超过 36 小时视为过期
   var DAILY_RANK_URL = 'data/rankings.json';
@@ -239,8 +251,19 @@
     $('#heroWindow').textContent = '观测窗 ' + API.viewingWindow(ev.epoch, ev.type === 'sunset', data.offsetSec).replace('约 ', '');
     $('#heroBearing').textContent = '方位 ' + dirName(ev.bearing);
     $('#heroConf').textContent = '置信度 ' + ev.conf + ' · ' + v.confText;
+    $('#heroModels').textContent = modelsText(ev);
+    $('#heroClarity').textContent = ev.clarity ? '通透度 ' + ev.clarity.level + '/7 · ' + ev.clarity.name : '';
     $('#heroGrade').textContent = ev.grade;
     paintHero(ev);
+  }
+
+  // 「5 个模式：3 个看好」——看好 = 该模式霞分 ≥ 50（小到中烧及以上）
+  function modelsText(ev) {
+    var e = ev.ensemble;
+    if (!e) return '仅单一模式（多模式数据暂缺）';
+    if (e.good === 0) return e.n + ' 个预报模式都不看好';
+    if (e.good === e.n) return e.n + ' 个预报模式都看好';
+    return e.n + ' 个预报模式中 ' + e.good + ' 个看好';
   }
 
   /* ---------------- 01 霞历 ---------------- */
@@ -510,7 +533,7 @@
       var s = c[0];
       var missing = s === null || s === undefined;
       var color = missing ? '' : (s >= 75 ? 'linear-gradient(90deg,#FF5A1F,#FFC36B)' : s >= 45 ? 'linear-gradient(90deg,#A84A6A,#E8805A)' : 'linear-gradient(90deg,#3E4452,#6E7380)');
-      var scoreTxt = L[0] === 'washed' ? '+' + (s ? (s * 0.03).toFixed(1) : '0.0') : (missing ? '—' : Math.round(s));
+      var scoreTxt = L[0] === 'washed' ? '+' + (s ? (s * 0.05).toFixed(1) : '0.0') : (missing ? '—' : Math.round(s));
       return '<div class="layer-row" role="row">' +
         '<span class="layer-alt" role="cell">' + L[2] + '</span>' +
         '<span class="layer-name" role="cell"><b>' + L[1] + '</b><span>' + esc(c[1]) + '</span></span>' +
@@ -518,15 +541,22 @@
         '<span class="layer-score" role="cell"><b>' + scoreTxt + '</b><span>×' + L[3] + '</span></span></div>';
     }).join('');
     var inp = ev.inputs || {};
-    var meta = [
+    var meta = [];
+    if (ev.ensemble) {
+      meta.push('各模式霞分 · ' + ev.ensemble.members.map(function (m) { return m.label + ' ' + m.score; }).join(' / ') + '（加权平均，综合 ×2）');
+      meta.push('本剖面云量取自 ' + ev.repModel);
+    }
+    meta = meta.concat([
       '剧本 · ' + ev.script,
       '中 / 高 / 低云 ' + fmtIn(inp.mid, '%') + ' / ' + fmtIn(inp.high, '%') + ' / ' + fmtIn(inp.low, '%'),
       '上游总云 ' + fmtIn(inp.upTotalAvg, '%'),
       'AOD ' + fmtIn(inp.aod, '', 2),
       'PM2.5 ' + fmtIn(inp.pm, ' µg/m³'),
       '能见度 ' + fmtIn(inp.visKm, ' km')
-    ];
-    if (ev.comps.precip && ev.comps.precip[0] === 0) meta.push('霞时刻降水 → 封顶 40 分');
+    ]);
+    if (ev.clarity) meta.push('通透度 ' + ev.clarity.level + '/7 ' + ev.clarity.name);
+    if (typeof ev.condScore === 'number') meta.push('条件分（加权平均）' + ev.condScore);
+    if (ev.comps.precip && ev.comps.precip[0] === 0) meta.push('霞时刻降水 → 霞分封顶 34（最高微烧）');
     if ((ev.reasons || []).some(function (r) { return r.indexOf('跨境烟霾') >= 0; })) meta.push('偏南风 + AOD 高 → −5');
     $('#profileMeta').innerHTML = meta.map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('');
   }
@@ -673,7 +703,7 @@
     $('#boardDots').innerHTML = list.map(function (r, i) {
       var c = r.city, p = project(c.lat, c.lon, china);
       var size = Math.max(6, 6 + (r.score - 40) / 5);
-      var col = r.score >= 75 ? '#FF5A1F' : r.score >= 55 ? '#FFA65A' : '#C9A08E';
+      var col = r.score >= 65 ? '#FF5A1F' : r.score >= 50 ? '#FFA65A' : '#C9A08E';
       return '<button class="dot" type="button" data-i="' + i + '" style="left:' + p.x.toFixed(1) + '%;top:' + p.y.toFixed(1) + '%" aria-label="' + esc(c.name) + ' ' + r.score + ' 分">' +
         '<i style="width:' + size.toFixed(0) + 'px;height:' + size.toFixed(0) + 'px;background:' + col + ';box-shadow:0 0 18px ' + col + '"></i>' +
         '<span>' + esc(c.name) + ' <b>' + r.score + '</b></span></button>';
@@ -682,7 +712,8 @@
       var c = r.city;
       return '<li><button class="rank-row" type="button" data-i="' + i + '">' +
         '<span class="rank-no">' + (i < 9 ? '0' : '') + (i + 1) + '</span>' +
-        '<span class="rank-city"><b>' + esc(c.name) + '</b><span>' + esc(c.country) + ' · ' + API.fmtDate(r.epoch, r.offsetSec || 0) + ' ' + API.fmtTime(r.epoch, r.offsetSec || 0) + ' 晚霞 · 置信度 ' + esc(r.conf) + '</span></span>' +
+        '<span class="rank-city"><b>' + esc(c.name) + '</b><span>' + esc(c.country) + ' · ' + API.fmtDate(r.epoch, r.offsetSec || 0) + ' ' + API.fmtTime(r.epoch, r.offsetSec || 0) + ' 晚霞 · 置信度 ' + esc(r.conf) +
+          (r.clarity ? ' · 通透度 ' + r.clarity.level + '/7' : '') + '</span></span>' +
         '<span class="rank-grade">' + esc(r.grade) + '</span>' +
         '<span class="rank-score">' + r.score + '</span></button></li>';
     }).join('') || '<li class="note">暂无数据</li>';
@@ -695,6 +726,9 @@
     $('#tickerInner').innerHTML = items + items;
     $('#ticker').hidden = false;
     var when = new Date(data.computedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    var st = data.stats && data.stats[china ? 'china' : 'global'];
+    $('#boardSummary').innerHTML = st ? summaryHTML(st, china) : '';
+    $('#boardSummary').hidden = !st;
     $('#boardNote').textContent = (state.rankingsDaily
       ? '每天北京时间 15:00 由服务器统一计算一次 · 本次更新于 ' + when + '（北京时间）'
       : '实时计算于 ' + when + '（北京时间）· 30 分钟缓存') +
@@ -702,11 +736,29 @@
     $('#boardLoadBtn').hidden = !!state.rankingsDaily;
   }
 
+  // 全部参评城市的分档分布：一眼看出今天整体烧不烧、烧在哪一档
+  function summaryHTML(st, china) {
+    var total = st.counts.reduce(function (a, b) { return a + b; }, 0);
+    if (!total) return '';
+    var any = total - st.counts[0];
+    var hot = st.counts[4] + st.counts[5];
+    var bars = A.LEVELS.map(function (L, k) {
+      var n = st.counts[k];
+      return '<span class="sum-seg lv' + k + '" style="flex:' + (n || 0.0001) + '" title="' + L.name + ' ' + n + '"></span>';
+    }).join('');
+    var legend = A.LEVELS.map(function (L, k) {
+      return '<span><i class="lv' + k + '"></i>' + L.name + ' <b>' + st.counts[k] + '</b></span>';
+    }).join('');
+    return '<p class="sum-head">' + (china ? '全中国' : '全球') + ' ' + total + ' 城参评 · <b>' + any + '</b> 城有霞（' +
+      Math.round(any / total * 100) + '%）· 中到大烧以上 <b>' + hot + '</b> 城</p>' +
+      '<div class="sum-bar">' + bars + '</div><div class="sum-legend">' + legend + '</div>';
+  }
+
   // 读服务器每天生成的榜单；拿不到或过期就返回 null，页面退回到按钮手动实时计算
   function loadDailyBoard() {
     var bucket = Math.floor(Date.now() / 3600000); // 每小时换一次查询串，避开中间缓存
     return API.fetchJSON(DAILY_RANK_URL + '?h=' + bucket, 10000).then(function (d) {
-      var ok = d && Array.isArray(d.global) && Array.isArray(d.china) && d.global.length && d.china.length &&
+      var ok = d && d.version >= 2 && Array.isArray(d.global) && Array.isArray(d.china) && d.global.length && d.china.length &&
         typeof d.computedAt === 'number' && Date.now() - d.computedAt < DAILY_RANK_MAX_AGE;
       return ok ? d : null;
     }).catch(function () { return null; });

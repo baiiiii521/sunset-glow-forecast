@@ -1,7 +1,8 @@
 /* ============================================================
  * 全球朝霞晚霞预测 · 核心算法（SunsetAlgo）
- * 与 ~/workspace/sunset-forecast/predict.py 保持一致的移植。
- * 唯一依据：predict.py（11 项加权评分）+ 文献报告。
+ * 两层：v1 条件分与 ~/workspace/sunset-forecast/predict.py 保持一致的移植
+ * （11 项加权评分，parity 测试对照 condScore / condGrade / condConf）；
+ * v2 霞分在其上做幕布 × 缺口 × 低云的几何门控、六级分档、通透度和多模式集合（见文件末尾）。
  *
  * 注意：predict.py 中 c_gap 在 up_total_avg=30 附近存在不连续跳变
  * （<=30 时用 100-1.2x，>30 时用 lerp(100→40)），此处忠实移植，
@@ -324,12 +325,25 @@
     else if (comps.curtain[0] >= 70 && (precip || 0) <= 0.2) script = '晴空薄高云型';
     else script = '混合型';
 
+    // v2：条件分只回答「条件好不好」，霞分再回答「会不会烧起来」
+    var g = glow(comps);
+    var lv = levelOf(g);
+    var cl = clarityOf(aod, vis, pm, (temp === null || temp === undefined || dew === null || dew === undefined) ? null : temp - dew);
+
     return {
-      score: pyRound(score),
-      rawScore: score,
-      grade: grade,
+      // v2 结果（页面展示用）
+      score: pyRound(g),
+      rawScore: g,
+      level: lv,
+      grade: LEVELS[lv].name,
+      conf: levelConf(g, anyMissing),
+      clarity: cl,
+      // v1 条件分（与 predict.py 一致，parity 测试对照这一组）
+      condScore: pyRound(score),
+      condRawScore: score,
+      condGrade: grade,
       gradeEmoji: gradeEmoji,
-      conf: conf,
+      condConf: conf,
       reasons: reasons,
       script: script,
       comps: comps,
@@ -345,6 +359,117 @@
     };
   }
 
+  /* ---------------- v2：霞分、六级、通透度、多模式集合 ----------------
+   * 和公众号「super朝霞晚霞预报」2026-10-19 的 493 点榜单交叉对比后发现：
+   * v1 的 10 项加权平均里，低云 / 降水 / 风 / CAPE 在晴空时都是满分，
+   * 把「没有云」的晴天也抬到 60–70 分（中烧）。火烧云要三件事同时成立：
+   * 头顶有中高云可被照亮（幕布）、太阳方向光路通（缺口）、低云不挡（低云），
+   * 缺一样就烧不起来，所以这三项改成几何加权（任何一项接近 0 都会把霞分拉到 0），
+   * 其余空气因素只做 ±15% 的调制。 */
+
+  var LEVELS = [
+    { name: '无烧', min: 0, tip: '云况不足，基本看不到' },
+    { name: '微烧', min: 20, tip: '云边可能泛一点淡色' },
+    { name: '小烧', min: 35, tip: '有机会出现小片霞色' },
+    { name: '小到中烧', min: 50, tip: '出现火烧云的机会较大' },
+    { name: '中到大烧', min: 65, tip: '大概率烧起来，值得去看' },
+    { name: '大烧', min: 80, tip: '条件极好，可能非常壮观' }
+  ];
+  var LEVEL_BOUNDS = [20, 35, 50, 65, 80];
+
+  function levelOf(score) {
+    for (var k = LEVELS.length - 1; k > 0; k--) if (score >= LEVELS[k].min) return k;
+    return 0;
+  }
+
+  function levelConf(score, anyMissing) {
+    var dist = Math.min.apply(null, LEVEL_BOUNDS.map(function (b) { return Math.abs(score - b); }));
+    var c = dist >= 6 ? '高' : (dist >= 3 ? '中' : '低');
+    if (anyMissing && c === '高') c = '中';
+    return c;
+  }
+
+  var KEY_W = [['curtain', 0.5], ['gap', 0.3], ['low', 0.2]];
+  var AIR_W = [['precip', 10], ['aod', 5], ['vis', 3], ['pm', 3], ['dew', 2], ['wind', 2], ['cape', 2]];
+
+  function glow(comps) {
+    var lw = 0, ls = 0;
+    KEY_W.forEach(function (w) {
+      var s = comps[w[0]][0];
+      if (s === null || s === undefined) return;
+      lw += w[1];
+      ls += w[1] * Math.log(Math.max(s, 1) / 100);
+    });
+    var key = lw ? 100 * Math.exp(ls / lw) : 50;
+    var aw = 0, as = 0;
+    AIR_W.forEach(function (w) {
+      var s = comps[w[0]][0];
+      if (s === null || s === undefined) return;
+      aw += w[1]; as += w[1] * s;
+    });
+    var air = aw ? as / aw : 70;
+    var g = key * (0.7 + 0.3 * air / 100);
+    if (comps.washed[0]) g += comps.washed[0] * 0.05; // 雨后洗净：最多 +5
+    if (comps.precip[0] === 0) g = Math.min(g, 34); // 霞时刻降水：最高微烧
+    return clamp(g, 0, 100);
+  }
+
+  // 通透度（1–7）：大气干不干净、远处看得清不清，决定霞色鲜艳度；和云况分开评
+  var CLARITY = ['', '浑浊', '灰蒙', '微霾', '一般', '较通透', '通透', '极通透'];
+  function clarityOf(aod, visM, pm, dewSpread) {
+    var parts = [];
+    if (aod !== null && aod !== undefined) parts.push([35, aod <= 0.1 ? 100 : lerp(aod, 0.1, 0.8, 100, 0)]);
+    if (visM !== null && visM !== undefined) parts.push([30, lerp(visM / 1000, 5, 30, 0, 100)]);
+    if (pm !== null && pm !== undefined) parts.push([25, pm <= 10 ? 100 : lerp(pm, 10, 75, 100, 0)]);
+    if (dewSpread !== null && dewSpread !== undefined) parts.push([10, lerp(dewSpread, 1, 8, 0, 100)]);
+    if (!parts.length) return null;
+    var w = 0, s = 0;
+    parts.forEach(function (p) { w += p[0]; s += p[0] * p[1]; });
+    s = s / w;
+    var lv = s >= 88 ? 7 : s >= 75 ? 6 : s >= 62 ? 5 : s >= 48 ? 4 : s >= 35 ? 3 : s >= 22 ? 2 : 1;
+    return { level: lv, name: CLARITY[lv], score: pyRound(s) };
+  }
+
+  /**
+   * 多模式集合：members = [{ model, label, weight, res }]（res 为 evaluate 结果，weight 缺省 1）。
+   * 霞分取加权平均（综合模式在有区域高分辨率模式的地方会优先用它们，权重 2）；
+   * 和公众号 10-19 榜单对照，加权平均的排序吻合度高于中位数和任一单一模式。
+   * 说明（理由、分项）沿用最接近霞分的那个模式，保证解释和分数一致；
+   * 置信度看各模式是否落在同一档附近，而不是只看离边界多远。
+   */
+  function combine(members) {
+    var ok = members.filter(function (m) { return m && m.res; });
+    if (!ok.length) return null;
+    var scores = ok.map(function (m) { return m.res.rawScore; }).sort(function (a, b) { return a - b; });
+    var n = scores.length;
+    var tw = 0, ts = 0;
+    ok.forEach(function (m) { var w = m.weight || 1; tw += w; ts += w * m.res.rawScore; });
+    var mean = ts / tw;
+    var rep = ok.slice().sort(function (a, b) { return Math.abs(a.res.rawScore - mean) - Math.abs(b.res.rawScore - mean); })[0];
+    var lv = levelOf(mean);
+    var near = ok.filter(function (m) { return Math.abs(levelOf(m.res.rawScore) - lv) <= 1; }).length;
+    var good = ok.filter(function (m) { return m.res.rawScore >= 50; }).length;
+    var spread = scores[n - 1] - scores[0];
+    var conf;
+    if (n < 3) conf = rep.res.conf;
+    else if (near / n >= 0.8 && spread <= 30) conf = '高';
+    else if (near / n >= 0.6) conf = '中';
+    else conf = '低';
+    var out = {};
+    for (var k in rep.res) if (Object.prototype.hasOwnProperty.call(rep.res, k)) out[k] = rep.res[k];
+    out.score = pyRound(mean);
+    out.rawScore = mean;
+    out.level = lv;
+    out.grade = LEVELS[lv].name;
+    out.conf = conf;
+    out.repModel = rep.label;
+    out.ensemble = {
+      n: n, good: good, near: near, spread: pyRound(spread),
+      members: ok.map(function (m) { return { model: m.model, label: m.label, score: m.res.score, grade: m.res.grade }; })
+    };
+    return out;
+  }
+
   var api = {
     clamp: clamp, lerp: lerp, pyRound: pyRound, fmt0: fmt0, fmtFixed: fmtFixed,
     destination: destination, solarDeclination: solarDeclination,
@@ -352,7 +477,9 @@
     toEpoch: toEpoch, idxFloor: idxFloor, idxNearest: idxNearest, hv: hv,
     cCurtain: cCurtain, cLow: cLow, cGap: cGap, cPrecip: cPrecip,
     cWashed: cWashed, cAod: cAod, cVis: cVis, cPm: cPm, cDew: cDew,
-    cWind: cWind, cCape: cCape, WEIGHTS: WEIGHTS, evaluate: evaluate
+    cWind: cWind, cCape: cCape, WEIGHTS: WEIGHTS, evaluate: evaluate,
+    LEVELS: LEVELS, LEVEL_BOUNDS: LEVEL_BOUNDS, levelOf: levelOf, levelConf: levelConf,
+    glow: glow, clarityOf: clarityOf, CLARITY: CLARITY, combine: combine
   };
   global.SunsetAlgo = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

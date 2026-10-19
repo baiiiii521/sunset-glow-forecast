@@ -27,12 +27,13 @@ const { fc, aq, upSunset, upSunrise, sunsetTime, sunriseTime, offsetSec, lat, to
 const jsSunset = A.evaluate(fc, aq, upSunset, A.toEpoch(sunsetTime, offsetSec), A.sunsetBearing(lat, todayDoy), offsetSec);
 const jsSunrise = A.evaluate(fc, aq, upSunrise, A.toEpoch(sunriseTime, offsetSec), A.sunriseBearing(lat, tomorrowDoy), offsetSec);
 for (const [label, js, py] of [['今晚晚霞', jsSunset, fixture.python.sunset], ['明日朝霞', jsSunrise, fixture.python.sunrise]]) {
-  check(label + ' score', js.score, py.score);
-  check(label + ' grade', js.grade, py.grade);
-  check(label + ' conf', js.conf, py.conf);
+  // v1 条件分与 predict.py 对照；v2 霞分是在其上新增的一层，Python 没有
+  check(label + ' score', js.condScore, py.score);
+  check(label + ' grade', js.condGrade, py.grade);
+  check(label + ' conf', js.condConf, py.conf);
   check(label + ' script', js.script, py.script);
   check(label + ' reasons', js.reasons, py.reasons);
-  console.log(label, '→ JS:', js.grade, js.score, js.conf, js.script, '| Python:', py.grade, py.score, py.conf, py.script);
+  console.log(label, '→ JS:', js.condGrade, js.condScore, js.condConf, js.script, '(v2 霞分', js.score, js.grade + ')', '| Python:', py.grade, py.score, py.conf, py.script);
 }
 
 // --- 2. 分项函数对照电池 ---
