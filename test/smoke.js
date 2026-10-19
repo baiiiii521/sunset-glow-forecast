@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // UI 烟雾测试：在 Node 里用最小 DOM 垫片跑通 app.js 全流程（真实 API），
-// 验证：首屏加载 → 四场卡片模板渲染 → 榜单单点路径（offsetSec 正确）。
+// 验证：首屏加载 → 霞历四场 → 天色时间轴 → 大气剖面 → 榜单单点路径（offsetSec 正确）。
 // 用法：node test/smoke.js
 'use strict';
 
@@ -21,7 +21,7 @@ function canvasCtxStub() {
 function elStub() {
   const el = {
     textContent: '', innerHTML: '', hidden: false, disabled: false, value: '',
-    offsetWidth: 0, style: {},
+    offsetWidth: 0, style: { setProperty() {} },
     classList: { add: () => {}, remove: () => {}, toggle: () => {} },
     addEventListener: () => {}, removeEventListener: () => {},
     querySelector: () => elStub(), querySelectorAll: () => [],
@@ -81,13 +81,20 @@ async function main() {
   else console.log('PASS：首屏结论 =', hero);
 
   const eventsHTML = getStub('#events').innerHTML;
-  if (!eventsHTML.includes('event-card') || !eventsHTML.includes('为什么这样判断')) {
-    failures++; console.log('FAIL：四场卡片未正确渲染');
-  } else console.log('PASS：四场卡片渲染完成（含明细折叠按钮）');
+  if ((eventsHTML.match(/class="ev-tile/g) || []).length !== 4) {
+    failures++; console.log('FAIL：霞历四场未正确渲染');
+  } else console.log('PASS：霞历四场渲染完成');
 
-  const quickHTML = getStub('#quickView').innerHTML;
-  if (!quickHTML.includes('quick-chip')) { failures++; console.log('FAIL：四场速览未渲染'); }
-  else console.log('PASS：四场速览渲染完成');
+  const PHASES = ['白昼', '金色时刻', '火烧云', '蓝调时刻', '浅黑', '黑'];
+  const phase = getStub('#tlName').textContent;
+  const bands = getStub('#tlBands').innerHTML;
+  if (!PHASES.includes(phase) || !/\d{2}:\d{2}/.test(getStub('#tlClock').textContent) || !bands.includes('<span')) {
+    failures++; console.log('FAIL：天色时间轴未渲染，phase =', JSON.stringify(phase));
+  } else console.log('PASS：天色时间轴 =', getStub('#tlClock').textContent, phase, getStub('#tlElev').textContent);
+
+  const layersHTML = getStub('#layers').innerHTML;
+  if ((layersHTML.match(/class="layer-row"/g) || []).length !== 11) { failures++; console.log('FAIL：大气剖面不是 11 层'); }
+  else console.log('PASS：大气剖面 11 层渲染完成');
 
   // 榜单单点路径：胡志明市 + 南宁（验证 offsetSec / 日落当地时间格式）
   for (const city of [
