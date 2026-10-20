@@ -132,6 +132,20 @@
     return [s, '太阳方向上游云多，缺口小'];
   }
 
+  // v2 缺口：只把上游低云和一半中云算作挡光，高云（卷云）不算。
+  // 日落前后照亮云底的光是贴着地平线从低空射来的，挡住它的是远处的低云 / 中云。
+  // 2026-10-20 对照：v1 缺口（用总云量）与对方判断在 4 段里有 3 段负相关；
+  // 改用这一版后，对方「今日朝霞回顾」的吻合度 0.58 → 0.70，对其预报的吻合度基本不变。
+  function cGap2(upLowAvg, upMidAvg) {
+    if (upLowAvg === null || upLowAvg === undefined) return [null, '无上游云量数据'];
+    var block = clamp(upLowAvg + 0.5 * (upMidAvg || 0), 0, 100);
+    var s = clamp(lerp(block, 10, 90, 100, 0), 0, 100);
+    var txt = '上游挡光云 ' + fmt0(block) + '%';
+    if (s >= 80) return [s, '太阳方向晴空缺口大（' + txt + '）'];
+    if (s >= 50) return [s, '太阳方向有部分低 / 中云（' + txt + '）'];
+    return [s, '太阳方向低 / 中云多，缺口小（' + txt + '）'];
+  }
+
   function cPrecip(precip, prob) {
     precip = precip || 0;
     prob = prob || 0;
@@ -232,7 +246,7 @@
     for (var k = 1; k <= 3; k++) pre3 += hv(h, 'precipitation', i - k, 0) || 0;
 
     // 上游晴空缺口：upstreamFcs 按 50/150/300km 顺序
-    var upLow = [], upTotal = [];
+    var upLow = [], upTotal = [], upMid = [];
     (upstreamFcs || []).forEach(function (fcUp) {
       if (!fcUp || !fcUp.hourly) return;
       var upOffset = (fcUp.utc_offset_seconds !== undefined && fcUp.utc_offset_seconds !== null)
@@ -241,11 +255,14 @@
       var j = idxFloor(utimes, eventEpoch);
       var l = hv(fcUp.hourly, 'cloud_cover_low', j, null);
       var t = hv(fcUp.hourly, 'cloud_cover', j, null);
+      var mm = hv(fcUp.hourly, 'cloud_cover_mid', j, null);
       if (l !== null && l !== undefined) upLow.push(l);
+      if (mm !== null && mm !== undefined) upMid.push(mm);
       if (t !== null && t !== undefined) upTotal.push(t);
     });
     var upLowAvg = upLow.length ? upLow.reduce(function (a, b) { return a + b; }, 0) / upLow.length : null;
     var upTotalAvg = upTotal.length ? upTotal.reduce(function (a, b) { return a + b; }, 0) / upTotal.length : null;
+    var upMidAvg = upMid.length ? upMid.reduce(function (a, b) { return a + b; }, 0) / upMid.length : null;
 
     // 空气质量：取最近时刻
     var aod = null, pm = null;
@@ -262,6 +279,7 @@
       curtain: cCurtain(mid, high),
       low: cLow(low),
       gap: cGap(upLowAvg, upTotalAvg),
+      gapV2: cGap2(upLowAvg, upMidAvg),
       precip: cPrecip(precip, prob),
       washed: cWashed(pre3, precip, prob),
       aod: cAod(aod),
@@ -315,6 +333,16 @@
     if (comps.washed[0] === 100) reasons.push(comps.washed[1]);
     if (hazeNote) reasons.push(hazeNote);
 
+    // v2 理由：缺口换成 v2 版本（v1 的 reasons 保持与 predict.py 一致）
+    var othersV2 = WEIGHTS
+      .filter(function (w) { return w[0] !== 'curtain'; })
+      .map(function (w) { var c = comps[w[0] === 'gap' ? 'gapV2' : w[0]]; return { s: c[0], label: c[1] }; })
+      .filter(function (o) { return o.s !== null && o.s !== undefined; })
+      .sort(function (a, b) { return a.s - b.s; });
+    var reasonsV2 = [comps.curtain[1]].concat(othersV2.slice(0, 2).map(function (o) { return o.label; }));
+    if (comps.washed[0] === 100) reasonsV2.push(comps.washed[1]);
+    if (hazeNote) reasonsV2.push(hazeNote);
+
     // 剧本类型
     var script;
     if (comps.precip[0] === 0) script = '降水遮挡型';
@@ -345,6 +373,7 @@
       gradeEmoji: gradeEmoji,
       condConf: conf,
       reasons: reasons,
+      reasonsV2: reasonsV2,
       script: script,
       comps: comps,
       inputs: {
@@ -354,7 +383,7 @@
         dewSpread: (temp === null || temp === undefined || dew === null || dew === undefined) ? null : temp - dew,
         temp: temp, dewPoint: dew,
         windSpeed: ws, windDir: wd, cape: cape,
-        upLowAvg: upLowAvg, upTotalAvg: upTotalAvg, pre3: pre3
+        upLowAvg: upLowAvg, upTotalAvg: upTotalAvg, upMidAvg: upMidAvg, pre3: pre3
       }
     };
   }
@@ -389,7 +418,7 @@
     return c;
   }
 
-  var KEY_W = [['curtain', 0.5], ['gap', 0.3], ['low', 0.2]];
+  var KEY_W = [['curtain', 0.5], ['gapV2', 0.3], ['low', 0.2]];
   var AIR_W = [['precip', 10], ['aod', 5], ['vis', 3], ['pm', 3], ['dew', 2], ['wind', 2], ['cape', 2]];
 
   function glow(comps) {
@@ -476,7 +505,7 @@
     sunsetBearing: sunsetBearing, sunriseBearing: sunriseBearing,
     toEpoch: toEpoch, idxFloor: idxFloor, idxNearest: idxNearest, hv: hv,
     cCurtain: cCurtain, cLow: cLow, cGap: cGap, cPrecip: cPrecip,
-    cWashed: cWashed, cAod: cAod, cVis: cVis, cPm: cPm, cDew: cDew,
+    cWashed: cWashed, cGap2: cGap2, cAod: cAod, cVis: cVis, cPm: cPm, cDew: cDew,
     cWind: cWind, cCape: cCape, WEIGHTS: WEIGHTS, evaluate: evaluate,
     LEVELS: LEVELS, LEVEL_BOUNDS: LEVEL_BOUNDS, levelOf: levelOf, levelConf: levelConf,
     glow: glow, clarityOf: clarityOf, CLARITY: CLARITY, combine: combine

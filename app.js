@@ -84,7 +84,7 @@
     else confText = '把握不大，' + (dir === 'up' ? '可能比这更好' : dir === 'down' ? '可能比这更差' : '在分级边界附近');
     var mainReason = (ev.comps && ev.comps.precip && ev.comps.precip[0] === 0)
       ? '霞时刻有降水，基本看不到'
-      : ((ev.reasons && ev.reasons[0]) || '');
+      : (((ev.reasonsV2 || ev.reasons) && (ev.reasonsV2 || ev.reasons)[0]) || '');
     return { title: title, action: action, confText: confText, mainReason: mainReason, dir: dir };
   }
 
@@ -247,7 +247,7 @@
     animateNumber($('#heroScore'), ev.score);
     $('#heroTitle').textContent = v.title;
     $('#heroAction').textContent = v.action;
-    $('#heroReason').textContent = (ev.reasons || []).join('；');
+    $('#heroReason').textContent = (ev.reasonsV2 || ev.reasons || []).join('；');
     $('#heroWindow').textContent = '观测窗 ' + API.viewingWindow(ev.epoch, ev.type === 'sunset', data.offsetSec).replace('约 ', '');
     $('#heroBearing').textContent = '方位 ' + dirName(ev.bearing);
     $('#heroConf').textContent = '置信度 ' + ev.conf + ' · ' + v.confText;
@@ -529,7 +529,7 @@
     var ev = data.events[state.sel];
     $('#profileLabel').textContent = EVENT_LABEL[ev.day + '|' + ev.type] + ' ' + API.fmtTime(ev.epoch, data.offsetSec);
     $('#layers').innerHTML = LAYERS.map(function (L, i) {
-      var c = ev.comps[L[0]] || [null, '无数据'];
+      var c = ev.comps[L[0] === 'gap' && ev.comps.gapV2 ? 'gapV2' : L[0]] || [null, '无数据'];
       var s = c[0];
       var missing = s === null || s === undefined;
       var color = missing ? '' : (s >= 75 ? 'linear-gradient(90deg,#FF5A1F,#FFC36B)' : s >= 45 ? 'linear-gradient(90deg,#A84A6A,#E8805A)' : 'linear-gradient(90deg,#3E4452,#6E7380)');
@@ -549,7 +549,7 @@
     meta = meta.concat([
       '剧本 · ' + ev.script,
       '中 / 高 / 低云 ' + fmtIn(inp.mid, '%') + ' / ' + fmtIn(inp.high, '%') + ' / ' + fmtIn(inp.low, '%'),
-      '上游总云 ' + fmtIn(inp.upTotalAvg, '%'),
+      '上游 低 / 中 / 总云 ' + fmtIn(inp.upLowAvg, '%') + ' / ' + fmtIn(inp.upMidAvg, '%') + ' / ' + fmtIn(inp.upTotalAvg, '%'),
       'AOD ' + fmtIn(inp.aod, '', 2),
       'PM2.5 ' + fmtIn(inp.pm, ' µg/m³'),
       '能见度 ' + fmtIn(inp.visKm, ' km')
@@ -557,7 +557,7 @@
     if (ev.clarity) meta.push('通透度 ' + ev.clarity.level + '/7 ' + ev.clarity.name);
     if (typeof ev.condScore === 'number') meta.push('条件分（加权平均）' + ev.condScore);
     if (ev.comps.precip && ev.comps.precip[0] === 0) meta.push('霞时刻降水 → 霞分封顶 34（最高微烧）');
-    if ((ev.reasons || []).some(function (r) { return r.indexOf('跨境烟霾') >= 0; })) meta.push('偏南风 + AOD 高 → −5');
+    if ((ev.reasonsV2 || ev.reasons || []).some(function (r) { return r.indexOf('跨境烟霾') >= 0; })) meta.push('偏南风 + AOD 高 → −5');
     $('#profileMeta').innerHTML = meta.map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('');
   }
 
