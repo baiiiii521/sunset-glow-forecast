@@ -20,11 +20,19 @@
     'wind_direction_10m', 'cape'
   ].join(',');
 
-  function fetchJSON(url, timeoutMs) {
+  // Open-Meteo 免费层按分钟限流（429）：退避后重试，最多再试 2 次（等 4s、12s）
+  var RETRY_429 = [4000, 12000];
+
+  function fetchJSON(url, timeoutMs, attempt) {
+    attempt = attempt || 0;
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || 30000);
     return fetch(url, { signal: ctrl.signal }).then(function (r) {
       clearTimeout(timer);
+      if (r.status === 429 && attempt < RETRY_429.length) {
+        return new Promise(function (res) { setTimeout(res, RETRY_429[attempt]); })
+          .then(function () { return fetchJSON(url, timeoutMs, attempt + 1); });
+      }
       if (!r.ok) throw new Error('HTTP ' + r.status + '（' + url.split('?')[0] + '）');
       return r.json();
     }).catch(function (e) {
@@ -424,7 +432,11 @@
   }
 
   // 批量算榜单（带并发限制 + 进度回调），返回 {global:[10], china:[10], computedAt}
-  function loadRankings(onProgress) {
+  // opts.concurrency：每组（全球 / 中国）同时算几座城，默认 6（浏览器）；服务器每日任务用 2，避免 429。
+  // 第一轮失败的城市会在最后串行重试一次。
+  function loadRankings(onProgress, opts) {
+    opts = opts || {};
+    var conc = opts.concurrency || 6;
     var total = GLOBAL_CITIES.length + CHINA_CITIES.length;
     var done = 0;
     function runOne(city) {
@@ -448,10 +460,25 @@
       for (var w = 0; w < concurrency; w++) workers.push(worker());
       return Promise.all(workers).then(function () { return results; });
     }
+    function retryFailed(results) {
+      var failed = results.filter(function (r) { return r.failed; });
+      var ok = results.filter(function (r) { return !r.failed; });
+      return failed.reduce(function (p, r) {
+        return p.then(function () {
+          return new Promise(function (res) { setTimeout(res, 1500); })
+            .then(function () { return evaluateNextSunset(r.city); })
+            .then(function (x) { ok.push(x); }, function (e) { ok.push({ city: r.city, failed: true, error: String(e && e.message || e) }); });
+        });
+      }, Promise.resolve()).then(function () { return ok; });
+    }
     return Promise.all([
-      runBatch(GLOBAL_CITIES, 6),
-      runBatch(CHINA_CITIES, 6)
+      runBatch(GLOBAL_CITIES, conc),
+      runBatch(CHINA_CITIES, conc)
     ]).then(function (pair) {
+      return retryFailed(pair[0]).then(function (g) {
+        return retryFailed(pair[1]).then(function (c) { return [g, c]; });
+      });
+    }).then(function (pair) {
       var okG = pair[0].filter(function (r) { return !r.failed; });
       var okC = pair[1].filter(function (r) { return !r.failed; });
       function counts(list) {
@@ -463,6 +490,8 @@
         global: sortBoard(okG).slice(0, 10),
         china: sortBoard(okC).slice(0, 10),
         stats: { global: counts(okG), china: counts(okC) },
+        failed: pair[0].concat(pair[1]).filter(function (r) { return r.failed; }).map(function (r) { return r.city.name + '：' + r.error; }),
+        singleModel: okG.concat(okC).filter(function (r) { return !r.ensemble; }).length,
         computedAt: Date.now()
       };
     });

@@ -33,7 +33,10 @@ function slim(r) {
 
 (async () => {
   const t0 = Date.now();
-  const data = await API.loadRankings();
+  // 低并发 + 失败重试：10-20、10-21 的定时任务曾因 429 限流整批作废
+  const data = await API.loadRankings(null, { concurrency: 2 });
+  if (data.failed.length) console.error(`${new Date().toISOString()} 失败 ${data.failed.length} 城：${data.failed.join('；')}`);
+  if (data.singleModel) console.error(`${new Date().toISOString()} ${data.singleModel} 城多模式数据缺失，退回单模式`);
   if (data.global.length < 5 || data.china.length < 5) {
     throw new Error(`有效城市太少（全球 ${data.global.length}、中国 ${data.china.length}），保留旧榜单`);
   }
