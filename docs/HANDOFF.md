@@ -54,7 +54,7 @@ data/                 gitignore；本地可放一份 rankings.json 调试霞榜
 
 ### 3.3 多模式集合 `combine(members)`
 
-- 每个成员 `{model, label, weight, res}`，霞分 = 加权平均（`best_match` 权重 2，其余 1）。
+- 每个成员 `{model, label, weight, res}`，霞分 = 加权平均（`best_match` 权重 3，其余 1；权重表在 api.js `MODEL_WEIGHT`）。
 - 理由、分项、剖面沿用**最接近霞分的那个成员**，保证解释和数字一致（`repModel`）。
 - 置信度看一致度：≥80% 成员在 ±1 档内且极差 ≤30 → 高；≥60% → 中；否则低。
 - `ensemble = {n, good(霞分≥50 的成员数), near, spread, members[]}` 供界面显示「5 个预报模式中 3 个看好」。
@@ -64,7 +64,7 @@ data/                 gitignore；本地可放一份 rankings.json 调试霞榜
 - **一个地点 = 3 个请求**：
   1. `forecastURL`：best_match 全量逐小时变量 + 日出日落，3 天；
   2. `aqURL`：CAMS 空气质量（AOD、PM2.5…）；
-  3. `ensembleURL`：**一次多点多模式请求**——本地点 + 朝霞方位 3 个上游点 + 晚霞方位 3 个上游点（50/150/300 km），5 个模式（best_match / ecmwf_ifs025 / gfs_seamless / icon_seamless / cma_grapes_global）的四层云量。
+  3. `ensembleURL`：**一次多点多模式请求**——本地点 + 朝霞方位 3 个上游点 + 晚霞方位 3 个上游点（50/150/300 km），4 个模式（best_match / ecmwf_ifs025 / gfs_seamless / icon_seamless）的四层云量。CMA 已于 10-21 移出（见 docs/compare-2026-10-21.md）。
 - `scoreEvent`：每个模式把云量替换进主预报（按时间轴对齐 `memberHourly`），各跑一遍 `A.evaluate`，再 `A.combine`。多模式请求失败（重试 1 次）就退回单模式、无上游，置信度最高为中。
 - 时间一律用真实 epoch 比较（`toEpoch` + `utc_offset_seconds`），不要用本地 `Date` 解析预报时间串。
 - `evaluatePlace(lat, lon)` → 今朝 / 今晚 / 明朝 / 明晚四场；`evaluateNextSunset(city)` → 霞榜用的下一场晚霞；`loadRankings()` → 全球 36 城 + 中国 34 城，并发 6，输出 TOP 10 + 全部城市的六档计数 `stats`。
@@ -125,7 +125,7 @@ node scripts/stamp-assets.js         # 改了 css/js 后、提交前必跑
 1. **用实况校准（最重要）**：每天对照公众号「super朝霞晚霞预报」——它的「今日朝霞回顾」是实况，可以检验我们前一天的「明早」预报（流程见项目文件夹 `compare/README.md`）。把每天的预报快照和实况落成数据集，攒 2–4 周后调六档阈值、几何权重（0.5/0.3/0.2）、模式权重；写一个 `scripts/eval.js` 自动出 AUC / 命中率。长期可加「今天你看到霞了吗」用户反馈（需要一个极小的后端或表单）。
 2. **服务器缓存代理**：在服务器上用 nginx `proxy_cache` 代理 Open-Meteo（按网格取整坐标、缓存 15–30 分钟）。国内访客直连 Open-Meteo 慢且会 429，代理能同时解决速度和额度。
 3. **霞榜扩容 + 朝霞榜**：中国城市扩到区县级（几百点，服务器每天算一次，多点请求可以批量），加「明早朝霞榜」，按省份汇总，做一张全国热力格点图——对方最受欢迎的就是这种全国一图看懂。
-4. **概率化**：接 Open-Meteo Ensemble API（ECMWF ENS 51 成员 / GFS ENS），把「5 个模式投票」升级成「烧起来的概率 xx%」，置信度更有依据。
+4. **概率化**：接 Open-Meteo Ensemble API（ECMWF ENS 51 成员 / GFS ENS），把「多模式投票」升级成「烧起来的概率 xx%」，置信度更有依据。
 5. **物理化时间曲线**：用云层高度（中云约 3–6 km、高云 6–12 km）和太阳俯角算云底被照亮的起止时刻，替换现在的示意高斯曲线，告诉用户「最红在日落后第几分钟」。
 6. **工程**：GitHub Actions 跑 `parity` + `stamp-assets --check`；写一个部署脚本（服务器上 `git pull` 或 rsync + 版本校验）；把 smoke 测试改成可离线（录制 fixture）。
 7. **表达**：分享卡片（生成一张带天空和结论的图）、订阅提醒（中到大烧以上推送）、微信小程序版本。

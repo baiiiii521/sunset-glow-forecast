@@ -257,7 +257,7 @@
     paintHero(ev);
   }
 
-  // 「5 个模式：3 个看好」——看好 = 该模式霞分 ≥ 50（小到中烧及以上）
+  // 「4 个模式：3 个看好」——看好 = 该模式霞分 ≥ 50（小到中烧及以上）
   function modelsText(ev) {
     var e = ev.ensemble;
     if (!e) return '仅单一模式（多模式数据暂缺）';
@@ -543,7 +543,7 @@
     var inp = ev.inputs || {};
     var meta = [];
     if (ev.ensemble) {
-      meta.push('各模式霞分 · ' + ev.ensemble.members.map(function (m) { return m.label + ' ' + m.score; }).join(' / ') + '（加权平均，综合 ×2）');
+      meta.push('各模式霞分 · ' + ev.ensemble.members.map(function (m) { return m.label + ' ' + m.score; }).join(' / ') + '（加权平均，综合 ×3）');
       meta.push('本剖面云量取自 ' + ev.repModel);
     }
     meta = meta.concat([
