@@ -157,12 +157,15 @@
   /* ---------------- 多模式集合 ----------------
    * 同一时刻各家数值模式的云量常常差很多（2026-10-19 西安日落：ECMWF 中云 54%、
    * GFS 低云 47%、CMA 几乎全晴）。只用一个模式会把这种不确定性藏起来，
-   * 所以云量（本地 + 上游各点）一次请求取 5 个模式，每个模式各算一遍霞分再加权平均（综合模式权重 2）。
+   * 所以云量（本地 + 上游各点）一次请求取 4 个模式，每个模式各算一遍霞分再加权平均（综合模式权重 3）。
+   * CMA GRAPES 于 2026-10-21 移出：三天交叉对比中它与对方预报 / 回顾的吻合度最差且最不稳定
+   * （9 段里 5 段 <0.6，最低 0.14），去掉后回顾与预报的吻合度都提高（docs/compare-2026-10-21.md）。
    * 降水、能见度、露点、风、CAPE 仍用综合模式（best_match），空气质量用 CAMS。 */
   var MODELS = [
     ['best_match', '综合'], ['ecmwf_ifs025', 'ECMWF'], ['gfs_seamless', 'GFS'],
-    ['icon_seamless', 'ICON'], ['cma_grapes_global', 'CMA']
+    ['icon_seamless', 'ICON']
   ];
+  var MODEL_WEIGHT = { best_match: 3 };
   var CLOUD_VARS = ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high'];
 
   // points: [{lat, lon}]，一次请求返回所有点 × 所有模式
@@ -228,7 +231,7 @@
           var uh = memberHourly(ens[k], m[0], baseTimes);
           return uh ? { hourly: uh, utc_offset_seconds: offsetSec } : null;
         }).filter(function (x) { return !!x; });
-        return { model: m[0], label: m[1], weight: m[0] === 'best_match' ? 2 : 1, res: A.evaluate(fcM, aq, ups, eventEpoch, bearing, offsetSec) };
+        return { model: m[0], label: m[1], weight: MODEL_WEIGHT[m[0]] || 1, res: A.evaluate(fcM, aq, ups, eventEpoch, bearing, offsetSec) };
       });
       res = A.combine(members);
     }
