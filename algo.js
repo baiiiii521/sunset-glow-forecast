@@ -70,6 +70,59 @@
     return Math.acos(cosA) * 180 / Math.PI;
   }
 
+  /* ---------------- 云底受光 + 光谱亮度（移植 Skyglow，物理可解释） ----------------
+   * 云底越高，进入地球阴影越晚（illumination_limit = -deg(sqrt(2h/R))），
+   * 且照亮云底的光路更干净（瑞利 τ∝λ^-4.1 + 米 τ∝λ^-1.3·AOD）→ 更亮更红。
+   * 用于给幕布项加「亮度/受光」因子，以及输出概率。 */
+  var R_EARTH = 6371.0, RAYLEIGH_TAU_550 = 0.098, AEROSOL_ANGSTROM = 1.3,
+      RAYLEIGH_SCALE_H = 7.5, AEROSOL_SCALE_H = 1.4, AEROSOL_AIRMASS_GAIN = 12.0;
+  var DECK_BASE = { high: 8.6, mid: 5.2, low: 1.2 };
+  var GLOW_ELEV = -1.0;   // 火烧云视觉峰值：太阳在地平线下约 1°
+
+  function illuminationLimit(baseKm) {
+    return -(Math.sqrt(2 * baseKm / R_EARTH)) * 180 / Math.PI;
+  }
+
+  function _airmass(sunElevDeg, baseKm) {
+    var tanRay = 38 * Math.exp(-baseKm / RAYLEIGH_SCALE_H);
+    var tanAer = AEROSOL_AIRMASS_GAIN * Math.exp(-baseKm / AEROSOL_SCALE_H);
+    if (sunElevDeg >= 0) {
+      var s = Math.max(Math.sin(sunElevDeg * Math.PI / 180), 0.005);
+      return [Math.min(tanRay, 1 / s), Math.min(tanAer, 0.75 / s)];
+    }
+    var alpha = -sunElevDeg * Math.PI / 180;
+    var ht = Math.max(0, baseKm - R_EARTH * alpha * alpha / 2);
+    return [38 * Math.exp(-ht / RAYLEIGH_SCALE_H), AEROSOL_AIRMASS_GAIN * Math.exp(-ht / AEROSOL_SCALE_H)];
+  }
+
+  // 只算亮度（相对太阳直射，0–1），不积 RGB——给幕布加权够用了
+  function deckLum(baseKm, aod, sunElevDeg) {
+    sunElevDeg = (sunElevDeg === undefined || sunElevDeg === null) ? GLOW_ELEV : sunElevDeg;
+    var m = _airmass(sunElevDeg, baseKm);
+    var mRay = m[0], mAer = m[1];
+    aod = Math.max(0, (aod === null || aod === undefined) ? 0.15 : aod);
+    var Y = 0, Yw = 0;
+    var gy = function (l, mu, s1, s2) { var s = l < mu ? s1 : s2; return Math.exp(-0.5 * Math.pow((l - mu) / s, 2)); };
+    var ybar = function (l) { return 0.821 * gy(l, 568.8, 46.9, 40.5) + 0.286 * gy(l, 530.9, 16.3, 31.1); };
+    for (var l = 400; l <= 700; l += 5) {
+      var lm = l * 1e-9, h = 6.626e-34, c = 3e8, k = 1.381e-23;
+      var planck = (2 * h * c * c / Math.pow(lm, 5)) / (Math.exp(h * c / (lm * k * 5778)) - 1);
+      var tau = RAYLEIGH_TAU_550 * Math.pow(550 / l, 4.1) * mRay + aod * Math.pow(550 / l, AEROSOL_ANGSTROM) * mAer;
+      var spec = planck * Math.exp(-tau);
+      var yb = ybar(l);
+      Y += spec * yb; Yw += planck * yb;
+    }
+    return Y / Math.max(Yw, 1e-9);
+  }
+
+  // 分数 → 概率（sigmoid，参数锚定 Skyglow 在上海 1109 条标签上拟合的等级概率档位）
+  // 使 小到中烧(50)≈26%、中到大烧(65)≈38%、大烧(80)≈52%，基准烧率 ~17%。
+  function scoreToProb(score) {
+    var z = 0.0375 * (score - 77.9);
+    if (z < -60) return 0; if (z > 60) return 1;
+    return 1 / (1 + Math.exp(-z));
+  }
+
   // 把 "YYYY-MM-DDTHH:MM"（某时区的墙上时间）换算成真实 epoch（毫秒）。
   // offsetSec 为该时区相对 UTC 的秒数（Open-Meteo 返回的 utc_offset_seconds）。
   function toEpoch(timeStr, offsetSec) {
@@ -111,6 +164,17 @@
     if (c <= 70) return [70 + 30 * (c - 30) / 40, '中高云幕布充足（' + fmt0(c) + '%）'];
     if (c <= 90) return [100 - 30 * (c - 70) / 20, '中高云较厚（' + fmt0(c) + '%）'];
     return [70 - 40 * (c - 90) / 10, '中高云近全覆盖（' + fmt0(c) + '%）'];
+  }
+
+  // 幕布「受光亮度」因子（Skyglow 光谱，仅用于 v2 霞分，不动 v1 条件分/parity）：
+  // 高云(8.6km)光路更干净、更亮，中云(5.2km)次之；AOD 越高越暗。
+  // 返回 0.6–1.0 的乘子：纯高云=1.0，纯中云≈0.75，乘在幕布分上。
+  function curtainLight(high, mid, aod) {
+    var hi = clamp(high || 0, 0, 100), mi = clamp(mid || 0, 0, 100);
+    if (hi + mi <= 0) return 1.0;
+    var lumHigh = deckLum(DECK_BASE.high, aod), lumMid = deckLum(DECK_BASE.mid, aod);
+    var light = (hi * lumHigh + mi * lumMid) / Math.max(hi + mi, 1);
+    return clamp(light / Math.max(lumHigh, 1e-9), 0.6, 1.0);
   }
 
   function cLow(low) {
@@ -225,14 +289,14 @@
    * bearing: 日出/日落方位角（度）
    * offsetSec: 主点时区 utc_offset_seconds
    */
-  function evaluate(fcLocal, aqLocal, upstreamFcs, eventEpoch, bearing, offsetSec) {
+  function evaluate(fcLocal, aqLocal, upstreamFcs, eventEpoch, bearing, offsetSec, cloudOverride, upDist) {
     var h = fcLocal.hourly || {};
     var times = (h.time || []).map(function (t) { return toEpoch(t, offsetSec); });
     var i = idxFloor(times, eventEpoch);
 
-    var mid = hv(h, 'cloud_cover_mid', i, 0);
-    var high = hv(h, 'cloud_cover_high', i, 0);
-    var low = hv(h, 'cloud_cover_low', i, 0);
+    var mid = (cloudOverride && cloudOverride.mid !== undefined && cloudOverride.mid !== null) ? cloudOverride.mid : hv(h, 'cloud_cover_mid', i, 0);
+    var high = (cloudOverride && cloudOverride.high !== undefined && cloudOverride.high !== null) ? cloudOverride.high : hv(h, 'cloud_cover_high', i, 0);
+    var low = (cloudOverride && cloudOverride.low !== undefined && cloudOverride.low !== null) ? cloudOverride.low : hv(h, 'cloud_cover_low', i, 0);
     var precip = hv(h, 'precipitation', i, 0);
     var prob = hv(h, 'precipitation_probability', i, 0);
     var vis = hv(h, 'visibility', i, null);
@@ -246,8 +310,8 @@
     for (var k = 1; k <= 3; k++) pre3 += hv(h, 'precipitation', i - k, 0) || 0;
 
     // 上游晴空缺口：upstreamFcs 按 50/150/300km 顺序
-    var upLow = [], upTotal = [], upMid = [];
-    (upstreamFcs || []).forEach(function (fcUp) {
+    var upLow = [], upTotal = [], upMid = [], upW = [];
+    (upstreamFcs || []).forEach(function (fcUp, idxUp) {
       if (!fcUp || !fcUp.hourly) return;
       var upOffset = (fcUp.utc_offset_seconds !== undefined && fcUp.utc_offset_seconds !== null)
         ? fcUp.utc_offset_seconds : offsetSec;
@@ -256,11 +320,16 @@
       var l = hv(fcUp.hourly, 'cloud_cover_low', j, null);
       var t = hv(fcUp.hourly, 'cloud_cover', j, null);
       var mm = hv(fcUp.hourly, 'cloud_cover_mid', j, null);
-      if (l !== null && l !== undefined) upLow.push(l);
+      // 距离越近挡光越狠：w = 1/(1+d/100)；没有距离表时等权
+      var w = (upDist && upDist[idxUp] !== undefined) ? 1 / (1 + upDist[idxUp] / 100) : 1;
+      if (l !== null && l !== undefined) { upLow.push(l); upW.push(w); }
       if (mm !== null && mm !== undefined) upMid.push(mm);
       if (t !== null && t !== undefined) upTotal.push(t);
     });
-    var upLowAvg = upLow.length ? upLow.reduce(function (a, b) { return a + b; }, 0) / upLow.length : null;
+    var wsum = upW.reduce(function (a, b) { return a + b; }, 0);
+    var upLowAvg = (upLow.length && wsum)
+      ? upLow.reduce(function (a, v, k) { return a + v * upW[k]; }, 0) / wsum
+      : (upLow.length ? upLow.reduce(function (a, b) { return a + b; }, 0) / upLow.length : null);
     var upTotalAvg = upTotal.length ? upTotal.reduce(function (a, b) { return a + b; }, 0) / upTotal.length : null;
     var upMidAvg = upMid.length ? upMid.reduce(function (a, b) { return a + b; }, 0) / upMid.length : null;
 
@@ -289,6 +358,9 @@
       wind: cWind(ws),
       cape: cCape(cape, low, prob)
     };
+    // v2 幕布「受光亮度」：高云比中云更亮、AOD 越高越暗（Skyglow 光谱），只影响霞分
+    var lightNorm = curtainLight(high, mid, aod);
+    comps.curtainV2 = [clamp(comps.curtain[0] * (0.75 + 0.25 * lightNorm), 0, 100), comps.curtain[1]];
 
     var totalW = 0, totalS = 0;
     WEIGHTS.forEach(function (w) {
@@ -362,6 +434,7 @@
       // v2 结果（页面展示用）
       score: pyRound(g),
       rawScore: g,
+      probability: scoreToProb(g),
       level: lv,
       grade: LEVELS[lv].name,
       conf: levelConf(g, anyMissing),
@@ -418,7 +491,7 @@
     return c;
   }
 
-  var KEY_W = [['curtain', 0.5], ['gapV2', 0.3], ['low', 0.2]];
+  var KEY_W = [['curtainV2', 0.5], ['gapV2', 0.3], ['low', 0.2]];
   var AIR_W = [['precip', 10], ['aod', 5], ['vis', 3], ['pm', 3], ['dew', 2], ['wind', 2], ['cape', 2]];
 
   function glow(comps) {
@@ -488,6 +561,7 @@
     for (var k in rep.res) if (Object.prototype.hasOwnProperty.call(rep.res, k)) out[k] = rep.res[k];
     out.score = pyRound(mean);
     out.rawScore = mean;
+    out.probability = scoreToProb(mean);
     out.level = lv;
     out.grade = LEVELS[lv].name;
     out.conf = conf;
@@ -508,7 +582,9 @@
     cWashed: cWashed, cGap2: cGap2, cAod: cAod, cVis: cVis, cPm: cPm, cDew: cDew,
     cWind: cWind, cCape: cCape, WEIGHTS: WEIGHTS, evaluate: evaluate,
     LEVELS: LEVELS, LEVEL_BOUNDS: LEVEL_BOUNDS, levelOf: levelOf, levelConf: levelConf,
-    glow: glow, clarityOf: clarityOf, CLARITY: CLARITY, combine: combine
+    glow: glow, clarityOf: clarityOf, CLARITY: CLARITY, combine: combine,
+    deckLum: deckLum, illuminationLimit: illuminationLimit, curtainLight: curtainLight,
+    scoreToProb: scoreToProb, DECK_BASE: DECK_BASE, GLOW_ELEV: GLOW_ELEV
   };
   global.SunsetAlgo = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
