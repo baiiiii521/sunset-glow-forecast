@@ -196,7 +196,7 @@ The free tier allows 600 calls per minute and 10,000 per day; check the official
 ## Accuracy and limitations
 
 - This is a **heuristic model built on published literature**, not an official weather forecast. There is no peer-reviewed "sunset colour index".
-- The grade thresholds and geometric weights have had one small cross-check: one day, 39 locations, five-model weighting at the time (AUC 0.79 for the evening event). AUC measures rank agreement with an external ranking, not accuracy.
+- The grade thresholds and geometric weights have had one small cross-check: one day, 39 locations. They have not been calibrated against observations; rank agreement is not forecast accuracy.
 - Ground truth is still accumulating locally (`data/` is not tracked): `glow-dataset.jsonl` logs daily forecasts against METAR observations, and `glow-labels.jsonl` holds human labels. Thresholds and weights will be recalibrated once the sample is large enough.
 - When data is missing the page says "no data" instead of interpolating or guessing.
 - CAMS is global at roughly 45 km and 3 hours, so local accuracy is limited.
@@ -217,9 +217,7 @@ The free tier allows 600 calls per minute and 10,000 per day; check the official
 - Stephen Corfidi, *The Science of Sunsets* (NOAA/NWS)
 - SOLA 2013 radiative-transfer simulations
 - SkyCandy, SunsetWx and Skyfire for their published heuristics
-- [Skyglow](https://github.com/couletian/Skyglow) for the spectral, illumination-geometry and calibration layers
 - [Open-Meteo](https://open-meteo.com/) and CAMS for free, keyless data
-- The public rankings from the WeChat account "super朝霞晚霞预报", used for cross-checks
 
 ## License
 

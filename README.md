@@ -194,7 +194,7 @@ node scripts/build-rankings.js data/rankings.json
 ## 准确性与局限
 
 - 这是一套**基于已发表文献的启发式模型**，不是官方气象预报。学界目前没有经过同行评审的「晚霞颜色指数」。
-- 六档阈值与几何权重只做过一次小样本交叉对比：1 天、39 个点（当时为五模式加权，今晚场 AUC 0.79）。AUC 衡量的是与外部榜单的排序一致性，不等于准确率。
+- 六档阈值与几何权重只做过一次 1 天、39 个点的小样本交叉对比，尚未用实况校准；排序吻合不等于预报准确。
 - 真值数据仍在本地积累（`data/` 不入库）：`glow-dataset.jsonl` 记录每日预报与 METAR 实测，`glow-labels.jsonl` 记录人工标注。样本足够后会重新标定阈值与权重。
 - 缺数据时页面明确显示「无数据」，不做插值或猜测。
 - CAMS 为全球域（约 45 km、3 小时），局地精度有限。
@@ -215,9 +215,7 @@ node scripts/build-rankings.js data/rankings.json
 - Stephen Corfidi, *The Science of Sunsets*（NOAA/NWS）
 - SOLA 2013 辐射传输模拟
 - SkyCandy、SunsetWx、Skyfire 的公开启发式规则
-- [Skyglow](https://github.com/couletian/Skyglow)：光谱、受光几何与概率标定
 - [Open-Meteo](https://open-meteo.com/) 与 CAMS 提供的免费数据
-- 公众号「super朝霞晚霞预报」的公开榜单，用于交叉对比
 
 ## License
 
