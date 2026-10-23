@@ -10,7 +10,7 @@
 
 <a href="https://glow.nybbq.art/"><img src="docs/assets/hero.jpg" alt="Xiá · Global Glow Forecast" width="100%"></a>
 
-<sub>Mexico City · tonight's sunset glow, 87 / 100 (Major) · screenshot from the live site</sub>
+<sub>Mexico City · tonight's sunset glow, 87 / 100 (Major) · screenshot from the live site; the interface is in Chinese</sub>
 
 </div>
 
