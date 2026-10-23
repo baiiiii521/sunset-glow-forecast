@@ -139,6 +139,7 @@
   var RANK_TTL = 30 * 60 * 1000;
   // 服务器每天北京时间 15:00 用 scripts/build-rankings.js 算好的榜单；超过 36 小时视为过期
   var DAILY_RANK_URL = 'data/rankings.json';
+  var DAILY_VERIFIED_URL = 'data/verified.json';
   var DAILY_RANK_MAX_AGE = 36 * 3600 * 1000;
 
   function loadJSON(key, fallback) {
@@ -713,7 +714,8 @@
       return '<li><button class="rank-row" type="button" data-i="' + i + '">' +
         '<span class="rank-no">' + (i < 9 ? '0' : '') + (i + 1) + '</span>' +
         '<span class="rank-city"><b>' + esc(c.name) + '</b><span>' + esc(c.country) + ' · ' + API.fmtDate(r.epoch, r.offsetSec || 0) + ' ' + API.fmtTime(r.epoch, r.offsetSec || 0) + ' 晚霞 · 置信度 ' + esc(r.conf) +
-          (r.clarity ? ' · 通透度 ' + r.clarity.level + '/7' : '') + '</span></span>' +
+          (r.clarity ? ' · 通透度 ' + r.clarity.level + '/7' : '') +
+          (r.verified !== null && r.verified !== undefined && r.verified < 0.5 ? ' · <em title="Jev 独立复核 ' + r.verified + '/1：该档位与这组天气条件不太吻合">⚠️ 复核存疑</em>' : '') + '</span></span>' +
         '<span class="rank-grade">' + esc(r.grade) + '</span>' +
         '<span class="rank-score">' + r.score + '</span></button></li>';
     }).join('') || '<li class="note">暂无数据</li>';
@@ -760,7 +762,20 @@
     return API.fetchJSON(DAILY_RANK_URL + '?h=' + bucket, 10000).then(function (d) {
       var ok = d && d.version >= 2 && Array.isArray(d.global) && Array.isArray(d.china) && d.global.length && d.china.length &&
         typeof d.computedAt === 'number' && Date.now() - d.computedAt < DAILY_RANK_MAX_AGE;
-      return ok ? d : null;
+      if (!ok) return null;
+      // Jev 复核结果由 Mac 侧补跑后回传（服务端在境内被 451 拦），按 computedAt 对齐才合并
+      return API.fetchJSON(DAILY_VERIFIED_URL + '?h=' + bucket, 8000).then(function (v) {
+        if (v && v.computedAt === d.computedAt && v.map) {
+          ['global', 'china'].forEach(function (tab) {
+            d[tab].forEach(function (r) {
+              var c = r.city || {};
+              var k = (c.name || '') + '|' + (c.lat != null ? Number(c.lat).toFixed(3) : '') + ',' + (c.lon != null ? Number(c.lon).toFixed(3) : '');
+              if (v.map[k] !== null && v.map[k] !== undefined) r.verified = v.map[k];
+            });
+          });
+        }
+        return d;
+      }).catch(function () { return d; });
     }).catch(function () { return null; });
   }
 

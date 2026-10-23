@@ -20,6 +20,7 @@ const ROOT = path.resolve(__dirname, '..');
 const algo = require(path.join(ROOT, 'algo.js'));
 global.SunsetAlgo = algo;
 const api = require(path.join(ROOT, 'api.js'));
+const jev = require('./jev.js');
 
 const DEFAULTS = { lat: 10.79, lon: 106.75, name: '胡志明市 · La Astoria (Thủ Đức)', tz: 'auto' };
 
@@ -36,6 +37,7 @@ function parseArgs(argv) {
     else if (a === '--offset') { out.offset = parseInt(next(), 10); out.offsetSet = true; }
     else if (a === '--place') out.place = next();
     else if (a === '--json') out.json = true;
+    else if (a === '--no-verify') out.noVerify = true;
     else if (a === '--help' || a === '-h') { console.log('node scripts/daily-push.js [--lat L --lon L --name N --tz TZ --days 7 --offset 0 --json]'); process.exit(0); }
   }
   out.days = Math.max(1, Math.min(10, out.days || 7));
@@ -442,6 +444,28 @@ function advice(ev) {
   return '基本没有，别等';
 }
 
+/* ---------------- Jev 独立复核：把「数据」和「分析」交给另一套系统判是否自洽 ----------------
+ * 只做增强，不阻断：超时/无 key/接口挂了都照常推送。p<0.5 时在文末加一行存疑提示。 */
+async function verifyHead(res, ens) {
+  const head = res.specs[0];
+  const ev = head && head.sunset;
+  if (!ev) return { ok: false, error: 'no-event' };
+  const inp = ev.inputs || {};
+  const conditions = {
+    grade: ev.grade,
+    score: ev.score,
+    high_cloud_pct: inp.high,
+    mid_cloud_pct: inp.mid,
+    low_cloud_pct: inp.low,
+    precip_mm: inp.precip,
+    precip_prob_pct: inp.prob,
+    aod: inp.aod,
+    visibility_km: inp.visKm,
+    ensemble_median: ens ? Math.round(ens.p50) : null
+  };
+  return jev.verifyEvent(conditions);
+}
+
 /* ---------------- main ---------------- */
 (async () => {
   const opt = parseArgs(process.argv);
@@ -454,11 +478,16 @@ function advice(ev) {
   }
   const res = await build(opt);
   const ens = await ensembleDistribution(opt, res.fc, res.aq, res.epSet, res.specs[0]);
+  let verify = null;
+  if (!opt.noVerify && jev.hasKey()) {
+    verify = await verifyHead(res, ens).catch(() => ({ ok: false, error: 'exception' }));
+  }
   if (opt.json) {
     const slim = {
       tz: res.tzName, offsetSec: res.offsetSec, fetchedAt: res.fetchedAt,
       place: { name: opt.name, lat: opt.lat, lon: opt.lon },
       ensemble51: ens,
+      verify: verify,
       days: res.specs.map(s => ({
         date: s.dateStr,
         sunset: s.sunset && { score: s.sunset.score, grade: s.sunset.grade, level: s.sunset.level, conf: s.sunset.conf, epoch: s.sunsetEpoch, bearing: s.sunsetBearing, clarity: s.sunset.clarity, reasons: s.sunset.reasonsV2, inputs: s.sunset.inputs, ensemble: s.sunset.ensemble },
@@ -467,7 +496,11 @@ function advice(ev) {
     };
     console.log(JSON.stringify(slim, null, 1));
   } else {
-    console.log(render(res, opt, ens));
+    let text = render(res, opt, ens);
+    if (verify && verify.ok && verify.p < 0.5) {
+      text += `\n\n⚠️ 复核存疑（Jev ${verify.p.toFixed(2)}）：结论与输入可能不一致，本次仅供参考。`;
+    }
+    console.log(text);
   }
 })().catch(e => {
   console.error('晚霞预报取数失败：' + (e && e.message ? e.message : e));
