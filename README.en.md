@@ -6,7 +6,7 @@
 
 [![Live Demo](https://img.shields.io/badge/live%20demo-glow.nybbq.art-FF6A2C?style=flat-square)](https://glow.nybbq.art/) [![License: MIT](https://img.shields.io/badge/license-MIT-2EA44F?style=flat-square)](LICENSE) [![Vanilla JS](https://img.shields.io/badge/stack-vanilla%20JS-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript) [![No build](https://img.shields.io/badge/build-none-3FA66A?style=flat-square)](#quick-start) [![Data](https://img.shields.io/badge/data-Open--Meteo%20%2B%20CAMS-4C8BF5?style=flat-square)](https://open-meteo.com/)
 
-[简体中文](README.md) · English
+[简体中文](README.md) · **English**
 
 <a href="https://glow.nybbq.art/"><img src="docs/assets/hero.jpg" alt="Xiá · Global Glow Forecast" width="100%"></a>
 
@@ -196,8 +196,8 @@ The free tier allows 600 calls per minute and 10,000 per day; check the official
 ## Accuracy and limitations
 
 - This is a **heuristic model built on published literature**, not an official weather forecast. There is no peer-reviewed "sunset colour index".
-- The grade thresholds and geometric weights were cross-checked against one day and 39 locations (AUC 0.79 for the evening event). AUC measures rank agreement with an external ranking, not accuracy.
-- Ground truth is still accumulating: `data/glow-dataset.jsonl` logs daily forecasts against METAR observations, and `data/glow-labels.jsonl` holds human labels. Thresholds and weights will be recalibrated once the sample is large enough.
+- The grade thresholds and geometric weights have had one small cross-check: one day, 39 locations, five-model weighting at the time (AUC 0.79 for the evening event). AUC measures rank agreement with an external ranking, not accuracy.
+- Ground truth is still accumulating locally (`data/` is not tracked): `glow-dataset.jsonl` logs daily forecasts against METAR observations, and `glow-labels.jsonl` holds human labels. Thresholds and weights will be recalibrated once the sample is large enough.
 - When data is missing the page says "no data" instead of interpolating or guessing.
 - CAMS is global at roughly 45 km and 3 hours, so local accuracy is limited.
 - The glow-intensity curve on the timeline is an illustration (score × a bell-shaped time window), not physical output.

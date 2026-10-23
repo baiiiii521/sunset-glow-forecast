@@ -6,7 +6,7 @@
 
 [![Live Demo](https://img.shields.io/badge/live%20demo-glow.nybbq.art-FF6A2C?style=flat-square)](https://glow.nybbq.art/) [![License: MIT](https://img.shields.io/badge/license-MIT-2EA44F?style=flat-square)](LICENSE) [![Vanilla JS](https://img.shields.io/badge/stack-vanilla%20JS-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript) [![No build](https://img.shields.io/badge/build-none-3FA66A?style=flat-square)](#快速开始) [![Data](https://img.shields.io/badge/data-Open--Meteo%20%2B%20CAMS-4C8BF5?style=flat-square)](https://open-meteo.com/)
 
-[简体中文](README.md) · [English](README.en.md)
+**简体中文** · [English](README.en.md)
 
 <a href="https://glow.nybbq.art/"><img src="docs/assets/hero.jpg" alt="霞 · 全球火烧云预报" width="100%"></a>
 
@@ -194,8 +194,8 @@ node scripts/build-rankings.js data/rankings.json
 ## 准确性与局限
 
 - 这是一套**基于已发表文献的启发式模型**，不是官方气象预报。学界目前没有经过同行评审的「晚霞颜色指数」。
-- 六档阈值与几何权重只用 1 天、39 个点做过交叉对比（今晚场 AUC 0.79）。AUC 衡量的是与外部榜单的排序一致性，不等于准确率。
-- 真值数据仍在积累：`data/glow-dataset.jsonl` 记录每日预报与 METAR 实测，`data/glow-labels.jsonl` 记录人工标注。样本足够后会重新标定阈值与权重。
+- 六档阈值与几何权重只做过一次小样本交叉对比：1 天、39 个点（当时为五模式加权，今晚场 AUC 0.79）。AUC 衡量的是与外部榜单的排序一致性，不等于准确率。
+- 真值数据仍在本地积累（`data/` 不入库）：`glow-dataset.jsonl` 记录每日预报与 METAR 实测，`glow-labels.jsonl` 记录人工标注。样本足够后会重新标定阈值与权重。
 - 缺数据时页面明确显示「无数据」，不做插值或猜测。
 - CAMS 为全球域（约 45 km、3 小时），局地精度有限。
 - 时间轴上的霞强度曲线是「评分 × 钟形时间窗」的示意，不是物理输出。
