@@ -11,18 +11,19 @@
 
   var GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
   // 可选：走自有缓存代理（nginx / node）。设置 window.GLOW_OM_BASE='/om' 即启用。
+  // 主路径直连 Open-Meteo（用户就近的边缘节点，最快）；
+  // 只有直连被限流（429）或失败时，才回落到自有缓存代理（window.GLOW_OM_BASE）。
   var OM = (typeof globalThis !== 'undefined' && globalThis.GLOW_OM_BASE) || '';
-  var FC_URL = OM ? OM + '/v1/forecast' : 'https://api.open-meteo.com/v1/forecast';
-  var AQ_URL = OM ? OM + '/air-quality/v1/air-quality' : 'https://air-quality-api.open-meteo.com/v1/air-quality';
-  var FC_DIRECT = 'https://api.open-meteo.com/v1/forecast';
-  var AQ_DIRECT = 'https://air-quality-api.open-meteo.com/v1/air-quality';
-  // 启用代理时把坐标取整到 0.05°（约 5km）：定位用户的缓存命中率从≈0 提到可用
-  function q(v) { return OM ? (Math.round(v * 20) / 20).toFixed(3) : v.toFixed(4); }
-  // 代理挂掉时回落到直连，避免 /om 成为全站单点
-  function directOf(url) {
-    if (!OM) return null;
-    if (url.indexOf(FC_URL) === 0) return url.replace(FC_URL, FC_DIRECT);
-    if (url.indexOf(AQ_URL) === 0) return url.replace(AQ_URL, AQ_DIRECT);
+  var FC_URL = 'https://api.open-meteo.com/v1/forecast';
+  var AQ_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+  var FC_FALLBACK = OM ? OM + '/v1/forecast' : null;
+  var AQ_FALLBACK = OM ? OM + '/air-quality/v1/air-quality' : null;
+  // 坐标取整到 0.05°（约 5km）：两条路径都更容易命中缓存，精度损失可忽略
+  function q(v) { return (Math.round(v * 20) / 20).toFixed(3); }
+  // 直连失败时的兜底地址（自有代理）
+  function fallbackOf(url) {
+    if (url.indexOf(FC_URL) === 0) return FC_FALLBACK ? url.replace(FC_URL, FC_FALLBACK) : null;
+    if (url.indexOf(AQ_URL) === 0) return AQ_FALLBACK ? url.replace(AQ_URL, AQ_FALLBACK) : null;
     return null;
   }
 
@@ -33,26 +34,30 @@
     'wind_direction_10m', 'cape'
   ].join(',');
 
-  // Open-Meteo 免费层按分钟限流（429）：退避后重试，最多再试 2 次（等 4s、12s）
+  // Open-Meteo 免费层按分钟限流（429）：有兜底代理时立刻切换，没有才退避重试（4s、12s）
   var RETRY_429 = [4000, 12000];
 
   function fetchJSON(url, timeoutMs, attempt) {
-    var direct = (!attempt && directOf(url)) || null;
     attempt = attempt || 0;
+    // 只有第一次尝试才考虑兜底，避免来回换
+    var alt = (attempt === 0 && fallbackOf(url)) || null;
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || 30000);
     return fetch(url, { signal: ctrl.signal }).then(function (r) {
       clearTimeout(timer);
-      if (r.status === 429 && attempt < RETRY_429.length) {
-        return new Promise(function (res) { setTimeout(res, RETRY_429[attempt]); })
-          .then(function () { return fetchJSON(url, timeoutMs, attempt + 1); });
+      if (r.status === 429) {
+        // 直连被限流：立刻换自有代理，不浪费时间重试
+        if (alt) return fetchJSON(alt, timeoutMs, 1);
+        if (attempt < RETRY_429.length) {
+          return new Promise(function (res) { setTimeout(res, RETRY_429[attempt]); })
+            .then(function () { return fetchJSON(url, timeoutMs, attempt + 1); });
+        }
       }
       if (!r.ok) throw new Error('HTTP ' + r.status + '（' + url.split('?')[0] + '）');
       return r.json();
     }).catch(function (e) {
       clearTimeout(timer);
-      // 代理（/om）失败：回落直连再试一次，避免 /om 成为单点
-      if (direct) return fetchJSON(direct, timeoutMs, attempt);
+      if (alt && e && e.name !== 'AbortError') return fetchJSON(alt, timeoutMs, 1);
       if (e.name === 'AbortError') throw new Error('请求超时');
       throw e;
     });

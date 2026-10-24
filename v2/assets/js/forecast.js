@@ -44,5 +44,40 @@ window.FORECAST = (function () {
     });
   }
 
-  return { weekly: weekly };
+
+  /* ---------------- 一次取数，两个用途 ----------------
+   * 四场（今早/今晚/明早/明晚）和七日用的是同一份数据，
+   * 合并后每次访问的请求数从 6 个降到 3 个（预报 + 空气质量 + 集合）。
+   */
+  var _cache = {};
+  function weeklyCached(lat, lon, n) {
+    var key = lat.toFixed(2) + ',' + lon.toFixed(2) + ',' + (n || 7);
+    var hit = _cache[key];
+    if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.p;
+    var p = weekly(lat, lon, n || 7).catch(function (e) { delete _cache[key]; throw e; });
+    _cache[key] = { p: p, at: Date.now() };
+    return p;
+  }
+
+  // 从七日结果里切出「今早/今晚/明早/明晚」四场，字段与 evaluatePlace 一致
+  function fourEvents(lat, lon) {
+    return weeklyCached(lat, lon, 7).then(function (w) {
+      var d0 = w.days[0] || {}, d1 = w.days[1] || {};
+      var raw = [
+        { day: 'today', type: 'sunrise', ev: d0.sunrise },
+        { day: 'today', type: 'sunset', ev: d0.sunset },
+        { day: 'tomorrow', type: 'sunrise', ev: d1.sunrise },
+        { day: 'tomorrow', type: 'sunset', ev: d1.sunset }
+      ];
+      var events = raw.filter(function (x) { return x.ev && x.ev.epoch; }).map(function (x) {
+        var e = x.ev;
+        e.day = x.day; e.type = x.type;
+        e.offsetSec = w.offsetSec; e.tzName = w.tzName;
+        return e;
+      }).sort(function (a, b) { return a.epoch - b.epoch; });
+      return { events: events, offsetSec: w.offsetSec, tzName: w.tzName, fetchedAt: w.fetchedAt, days: w.days };
+    });
+  }
+
+  return { weekly: weekly, weeklyCached: weeklyCached, fourEvents: fourEvents };
 })();

@@ -229,7 +229,7 @@
     G.initSky(); G.masthead(); G.tabbar('city'); G.reveal('.reveal-auto');
     renderHead();
     paintFromSnapshot();
-    API.evaluatePlace(place.lat, place.lon).then(function (d) {
+    FORECAST.fourEvents(place.lat, place.lon).then(function (d) {
       state.data = d; renderToday(); renderBoardBadge(d.fetchedAt, d.offsetSec);
       state.updAt = '更新 ' + G.fmtTime(d.fetchedAt, d.offsetSec);
       var el = document.getElementById('updAt'); if (el) el.textContent = state.updAt;
@@ -250,7 +250,7 @@
       });
     });
 
-    FORECAST.weekly(place.lat, place.lon, 7).then(function (w) {
+    FORECAST.weeklyCached(place.lat, place.lon, 7).then(function (w) {
       state.week = w;
       if (state.idx >= w.days.length) state.idx = 0;
       renderMatrix(); renderDeck(); renderModels(); renderHead();

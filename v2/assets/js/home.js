@@ -511,7 +511,7 @@
     $('#weekGrid').innerHTML = '';
     $('#searchLabel').textContent = place.short || place.name;
     load(place, seq);
-    FORECAST.weekly(place.lat, place.lon, 7).then(function (w) {
+    FORECAST.weeklyCached(place.lat, place.lon, 7).then(function (w) {
       if (seq !== placeSeq) return;          // 已经不是当前地点，丢弃
       state.week = w; renderWeek();
     }).catch(function (e) {
@@ -547,7 +547,7 @@
   function load(place, seq) {
     state.place = place;
     $('#searchLabel').textContent = place.short || place.name;
-    return API.evaluatePlace(place.lat, place.lon).then(function (d) {
+    return FORECAST.fourEvents(place.lat, place.lon).then(function (d) {
       if (seq != null && seq !== placeSeq) return;   // 迟到的旧地点，丢弃
       state.data = d;
       var now = Date.now(), first = 0;
