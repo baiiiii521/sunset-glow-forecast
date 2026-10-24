@@ -42,6 +42,25 @@ function readWorld() {
 function normName(n) {
   return String(n || '').replace(/[市区县镇]$/, '').trim();
 }
+
+// 世界城市表里少数城市没有中文名（如 Zhuanghe），用 points-china 里最近的点补上
+let _cnPts = null;
+function cnPoints() {
+  if (_cnPts) return _cnPts;
+  try {
+    _cnPts = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'points-china.json'), 'utf8')).points || [];
+  } catch (e) { _cnPts = []; }
+  return _cnPts;
+}
+function zhNear(lat, lon) {
+  let best = null, bd = 1e9;
+  for (const p of cnPoints()) {
+    const d = haversine({ lat, lon }, p);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return bd <= 25 && best ? best.name : null;
+}
+
 function dedupe(list) {
   const kept = [];
   for (const c of list) {
@@ -110,8 +129,8 @@ function counts(list) {
     const apply = (list) => list.map((r) => {
       const f = byName.get(r.city.name);
       if (!f) return r;
-      // 集合失败退化成单模式的结果不替换（口径不同，会让排序失真）
-      if (!f.ensemble || !f.ensemble.members) return r;
+      // 精算失败回退的粗分不替换（口径不同，会让排序失真）
+      if (f.coarseOnly) return r;
       return { city: f.city, score: f.score, grade: f.grade, level: f.level, conf: f.conf,
         clarity: f.clarity || null, models: f.ensemble ? f.ensemble.members.map((m) => [m.label, m.score]) : null,
         epoch: f.epoch, offsetSec: f.offsetSec, tzName: f.tzName, day: f.day };
@@ -147,7 +166,7 @@ function counts(list) {
   );
   const chinaPool = dedupe(
     API.CHINA_CITIES
-      .concat(world.filter((c) => c.cc === 'CN').slice(0, N_CHINA).map((c) => ({ name: c.zh || c.en, country: '中国', lat: c.lat, lon: c.lon })))
+      .concat(world.filter((c) => c.cc === 'CN').slice(0, N_CHINA).map((c) => ({ name: c.zh || zhNear(c.lat, c.lon) || c.en, country: '中国', lat: c.lat, lon: c.lon })))
   );
 
   console.error(`${new Date().toISOString()} 城市池：全球 ${globalPool.length} / 中国 ${chinaPool.length}`);
@@ -182,7 +201,7 @@ function counts(list) {
 
   const byScore = (list) => list
     .filter((r) => !r.coarseOnly)                       // 粗分不参与排名
-    .filter((r) => r.ensemble && r.ensemble.members)    // 集合失败退化成单模式的也不进榜
+    // 只排除精算失败回退的粗分；ensemble 缺失只影响置信度，不该把城市整座剔除
     .sort((a, b) => b.score - a.score);
   const boardG = byScore(mergeSatellites(fineG));
   const boardC = byScore(mergeSatellites(fineC));
@@ -202,8 +221,8 @@ function counts(list) {
     computedAt: Date.now(),
     universe: { global: globalPool.length, china: chinaPool.length, refined: fineG.length + fineC.length },
     stats: { global: { counts: counts(boardG) }, china: { counts: counts(boardC) } },
-    global: boardG.slice(0, 10).map(slim),
-    china: boardC.slice(0, 10).map(slim)
+    global: boardG.slice(0, TOP_K).map(slim),
+    china: boardC.slice(0, TOP_K).map(slim)
   };
   const all = {
     version: 3,
