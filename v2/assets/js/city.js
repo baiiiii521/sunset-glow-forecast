@@ -8,11 +8,10 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 
   var q = new URLSearchParams(location.search);
-  var place = {
-    name: q.get('c') || '胡志明市',
-    lat: Number.isFinite(parseFloat(q.get('lat'))) ? parseFloat(q.get('lat')) : 10.79,
-    lon: Number.isFinite(parseFloat(q.get('lon'))) ? parseFloat(q.get('lon')) : 106.75
-  };
+  var _pLat = parseFloat(q.get('lat')), _pLon = parseFloat(q.get('lon'));
+  var place = (q.get('c') && Number.isFinite(_pLat) && Number.isFinite(_pLon))
+    ? { name: q.get('c'), lat: _pLat, lon: _pLon }
+    : (window.GLOW.loadPlace() || null);   // 没有参数就用上次选过的城市；都没有就空态
   var _d = parseInt(q.get('d'), 10);
   var state = { week: null, idx: Number.isInteger(_d) && _d >= 0 ? _d : 0, scope: 'all', data: null };
   var gradeColor = function (l) { return 'var(--lv' + l + ')'; };
@@ -27,11 +26,58 @@
     document.title = place.name + ' · 七天霞预报';
   }
 
+  /* ---------- 没选城市 ---------- */
+  function renderNoCity() {
+    document.title = '霞 · 选一个城市';
+    var head = document.querySelector('.city-head');
+    if (head) {
+      head.innerHTML = '<div><div class="lab">CITY / 城市</div>' +
+        '<h1 class="h1" style="margin-top:12px">还没选城市</h1></div>' +
+        '<p class="body lede">搜一个城市，或者回首页点「定位」用当前位置。这里不猜你住在哪。</p>';
+    }
+    var row = document.getElementById('todayRow');
+    if (row) row.innerHTML = '<div class="tcard big"><div class="lab">未设置区域</div>' +
+      '<div class="tscore">--<span>/100</span></div><div class="tgrade">先选一个城市</div></div>';
+    ['matrix', 'deck', 'models'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = '<div class="small" style="padding:20px 0">选择城市后显示。</div>';
+    });
+    var cap = document.getElementById('tdCap'); if (cap) cap.textContent = '按 ⌘K 搜索城市';
+  }
+
   /* ---------- 今天 ---------- */
   function renderToday() {
     var d = state.data;
     if (!d) return;
     var now = Date.now();
+
+    // 从七日格子点进来（?d=N）：显示所选那一天，而不是「下一个场次」
+    var picked = null;
+    if (state.idx > 0 && state.week && state.week.days[state.idx]) {
+      var pd = state.week.days[state.idx];
+      picked = (state.scope === 'sunrise' ? pd.sunrise : pd.sunset) || pd.sunset || pd.sunrise;
+    }
+    if (picked) {
+      var plv = picked.level != null ? picked.level : G.band(picked.score);
+      var pwin = API.viewingWindow ? API.viewingWindow(picked.epoch, picked.type === 'sunset', d.offsetSec).replace('约 ', '') : '—';
+      if ($('#tdTitle')) $('#tdTitle').textContent = '这一天的晚霞';
+      $('#tdCap').textContent = '所选日期 · ' + G.fmtDate(picked.epoch, d.offsetSec) +
+        ' · 点矩阵里「今天」那一列可回到当前场次';
+      $('#todayRow').innerHTML =
+        '<div class="tcard big" style="--c:' + gradeColor(plv) + '">' +
+          '<div class="lab">' + (picked.type === 'sunset' ? '日落' : '日出') + ' · ' + G.fmtDate(picked.epoch, d.offsetSec) + '</div>' +
+          '<div class="tscore">' + picked.score + '<span>/100</span></div>' +
+          '<div class="tgrade">' + (G.GRADE[plv] || picked.grade) + ' · ' + G.SENT[plv] + '</div>' +
+        '</div>' +
+        [['最佳窗口', pwin], [picked.type === 'sunrise' ? '日出' : '日落', G.fmtTime(picked.epoch, d.offsetSec)],
+         ['方位', Math.round(picked.bearing || 0) + '°'], ['通透', (picked.clarity && picked.clarity.score) || '—'],
+         ['把握', picked.conf || '—'], ['模式', (((picked.ensemble && picked.ensemble.members) || []).length || '—') + ' 个']]
+          .map(function (r) { return '<div class="tcard"><div class="lab">' + r[0] + '</div><div class="tv">' + r[1] + '</div></div>'; }).join('');
+      G.setSky(plv, picked.type === 'sunrise', true);
+      return;
+    }
+    if ($('#tdTitle')) $('#tdTitle').textContent = '今天这一场';
+
     if (!d.events || !d.events.length) {
       $('#tdCap').textContent = '这段时间没有可评分的场次（极昼/极夜或无日落）';
       $('#todayRow').innerHTML = '<div class="tcard big"><div class="lab">无场次</div>' +
@@ -50,7 +96,7 @@
       '</div>' +
       [['最佳窗口', win], [ev.type === 'sunrise' ? '日出' : '日落', G.fmtTime(ev.epoch, d.offsetSec)], ['方位', Math.round(ev.bearing || 0) + '°'],
        ['通透', (ev.clarity && ev.clarity.score) || '—'], ['把握', ev.conf || '—'],
-       ['模式', ((ev.ensemble && ev.ensemble.members) || []).length + ' 家']]
+       ['模式', (((ev.ensemble && ev.ensemble.members) || []).length || '—') + ' 个']]
         .map(function (r) { return '<div class="tcard"><div class="lab">' + r[0] + '</div><div class="tv">' + r[1] + '</div></div>'; }).join('');
     G.setSky(lv, ev.type === 'sunrise', true);
   }
@@ -91,6 +137,7 @@
     $$('.mx-cell:not(.empty)').forEach(function (b) {
       b.addEventListener('click', function () {
         state.idx = +b.dataset.i;
+        renderToday();
         renderMatrix(); renderDeck(); renderModels(); renderHead();
         var u = new URL(location.href); u.searchParams.set('d', state.idx);
         history.replaceState(null, '', u);
@@ -236,6 +283,9 @@
 
   function boot() {
     G.initSky(); G.masthead(); G.tabbar('city'); G.reveal('.reveal-auto');
+    G.initSearch({});
+    if (!place) { renderNoCity(); return; }   // 没选过城市：不编造默认值
+    G.savePlace(place); G.decorateLinks();   // 记住这座城市，回首页不会变空态
     renderHead();
     paintFromSnapshot();
     FORECAST.fourEvents(place.lat, place.lon).then(function (d) {
@@ -261,6 +311,7 @@
 
     FORECAST.weeklyCached(place.lat, place.lon, 7).then(function (w) {
       state.week = w;
+      renderToday();   // 七日到手后，按 ?d= 重渲染「这一天」卡片
       if (state.idx >= w.days.length) state.idx = 0;
       renderMatrix(); renderDeck(); renderModels(); renderHead();
     }).catch(function (e) {

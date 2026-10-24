@@ -38,6 +38,50 @@ window.GLOW = (function () {
 
   /* 天幕：按等级换图 + 交叉淡入 */
   var sky = { a: null, b: null, busy: false, cur: '' };
+  /* ---------------- 位置记忆 ----------------
+   * 位置只存在 URL 里的话，从霞榜/城市页回首页就会退回「未设置区域」。
+   * 这里把用户明确选过的位置存本地，并在页面间跳转时带上参数（双保险）。
+   */
+  var PLACE_KEY = 'glow.place.v1';
+
+  function savePlace(p) {
+    try {
+      if (!p || !isFinite(p.lat) || !isFinite(p.lon)) return;
+      localStorage.setItem(PLACE_KEY, JSON.stringify({
+        name: p.name, short: p.short || p.name, lat: +p.lat, lon: +p.lon, source: p.source || 'manual'
+      }));
+    } catch (e) {}
+  }
+
+  function loadPlace() {
+    try {
+      var raw = localStorage.getItem(PLACE_KEY);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || !isFinite(o.lat) || !isFinite(o.lon) || !o.name) return null;
+      return o;
+    } catch (e) { return null; }
+  }
+
+  function placeQuery() {
+    var p = loadPlace();
+    if (!p) return '';
+    return '?c=' + encodeURIComponent(p.name) + '&lat=' + p.lat + '&lon=' + p.lon;
+  }
+
+  // 站内导航带上位置参数，保证跨页面不丢
+  function decorateLinks() {
+    var q = placeQuery();
+    if (!q) return;
+    Array.prototype.forEach.call(document.querySelectorAll('a[href]'), function (a) {
+      var href = a.getAttribute('href');
+      if (!href || href.indexOf('?') >= 0 || href.charAt(0) === '#') return;
+      if (!/^(index|board|city)\.html$/.test(href)) return;
+      if (a.hasAttribute('data-noqs')) return;
+      a.setAttribute('href', href + q);
+    });
+  }
+
   function initSky() {
     sky.a = document.getElementById('skyA'); sky.b = document.getElementById('skyB');
     if (sky.a) sky.cur = sky.a.getAttribute('src') || '';
@@ -75,6 +119,7 @@ window.GLOW = (function () {
 
   /* 顶栏：滚动毛玻璃 + 鼠标视差 */
   function masthead() {
+    decorateLinks();
     var mast = document.getElementById('mast');
     if (mast) {
       var f = function () { mast.classList.toggle('solid', window.scrollY > 120); };
@@ -88,6 +133,7 @@ window.GLOW = (function () {
 
   /* 底部 tabbar（移动端） */
   function tabbar(active) {
+    decorateLinks();
     var bar = document.getElementById('tabbar');
     if (!bar) return;
     Array.prototype.forEach.call(bar.querySelectorAll('a'), function (a) {
@@ -161,24 +207,35 @@ window.GLOW = (function () {
     var box = document.getElementById('spResults');
     if (!panel || !btn || !input || !box) return;
     var seq = 0, timer = null;
+    var esc = function (t) {
+      return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    };
+    var QUICK = ['胡志明市', '上海', '东京', 'Nha Trang', '漠河'];
+
+    function hint() {
+      box.innerHTML = '<div class="small" style="padding:10px 0 6px">试试这些：</div>' +
+        QUICK.map(function (n) { return '<button type="button" class="sres quick" data-q="' + esc(n) + '"><b>' + esc(n) + '</b></button>'; }).join('');
+    }
 
     function open() {
       panel.hidden = false;
       document.body.classList.add('sp-open');
+      if (!input.value.trim()) hint();
       setTimeout(function () { input.focus(); }, 30);
     }
     function close() { panel.hidden = true; document.body.classList.remove('sp-open'); }
 
     function run() {
       var q = (input.value || '').trim();
-      if (!q) { box.innerHTML = ''; return; }
+      if (!q) { hint(); return; }
       var my = ++seq;
       box.innerHTML = '<div class="small" style="padding:12px 0">搜索中…</div>';
       searchAll(q).then(function (list) {
         if (my !== seq) return;
         box.innerHTML = list.length ? list.map(function (p) {
-          return '<button type="button" class="sres" data-lat="' + p.lat + '" data-lon="' + p.lon +
-            '" data-name="' + p.name + '"><b>' + p.name + '</b><span>' + (p.sub || '') + '</span></button>';
+          return '<button type="button" class="sres" data-lat="' + esc(p.lat) + '" data-lon="' + esc(p.lon) +
+            '" data-name="' + esc(p.name) + '"><b>' + esc(p.name) + '</b><span>' + esc(p.sub || '') + '</span></button>';
         }).join('') : '<div class="small" style="padding:14px 0">没找到。试试英文名（Nha Trang / Da Nang）</div>';
       });
     }
@@ -186,6 +243,8 @@ window.GLOW = (function () {
     input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(run, 180); });
     input.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     box.addEventListener('click', function (e) {
+      var q = e.target.closest('.sres.quick');
+      if (q) { input.value = q.dataset.q; run(); input.focus(); return; }
       var b = e.target.closest('.sres'); if (!b) return;
       close();
       var place = { name: b.dataset.name, short: b.dataset.name, lat: +b.dataset.lat, lon: +b.dataset.lon, source: 'manual' };
@@ -262,6 +321,7 @@ window.GLOW = (function () {
   }
 
   return {
+    savePlace: savePlace, loadPlace: loadPlace, decorateLinks: decorateLinks,
     A: A, API: API, GRADE: GRADE, SENT: SENT, WD: WD,
     band: band, lvColor: lvColor, pad: pad,
     fmtTime: fmtTime, fmtDate: fmtDate, weekday: weekday,

@@ -59,7 +59,7 @@
     var chips = [
       ['把握', ev.conf || '—', ''],
       ['通透', String(clarity.score), clarity.name],
-      ['模式', String((ens.members || []).length || '—'), '家'],
+      ['模式', (ens.members || []).length ? (ens.members.length + ' 个') : '—', ''],
       ['方位', Math.round(ev.bearing || 0) + '°', '']
     ];
     $('#heroChips').innerHTML = chips.map(function (c) {
@@ -500,6 +500,7 @@
   }
 
   function applyPlace(place) {
+    if (place && isFinite(place.lat) && isFinite(place.lon)) { G.savePlace(place); G.decorateLinks(); }
     var seq = ++placeSeq;
     state.place = place;
     state.data = null;
@@ -617,7 +618,7 @@
   function boot() {
     G.initSky(); G.masthead(); G.tabbar('home'); bindTimeline(); bindBoardTabs(); renderBoard(); G.reveal('.reveal-auto');
     G.initSearch({ onPick: applyPlace, onLocate: locate });
-    var place = readURL();
+    var place = readURL() || G.loadPlace();
     if (place) applyPlace(place); else renderEmpty();
 
     $$('#events').length || null;
@@ -627,12 +628,24 @@
     });
 
     var share = function () {
+      if (!state.place) { G.notice('先选一个城市，再分享这一场的预报', 'warn'); return; }
       var ev = state.data && state.data.events[state.idx];
       var txt = ev ? ('今晚霞分 ' + ev.score + ' · ' + (G.GRADE[ev.level != null ? ev.level : G.band(ev.score)] || '') + ' · ' + state.place.name) : 'GLOW';
-      if (navigator.share) navigator.share({ title: '霞', text: txt, url: location.href }).catch(function () {});
-      else { navigator.clipboard.writeText(location.href); }
+      if (navigator.share) {
+        navigator.share({ title: '霞', text: txt, url: location.href }).catch(function () {});
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(location.href).then(function () {
+          G.notice('链接已复制，发给朋友就能看到同一份预报', 'ok');
+        }).catch(function () { G.notice('复制失败，请手动复制地址栏链接', 'warn'); });
+      } else {
+        G.notice('当前浏览器不支持一键分享，请手动复制地址栏链接', 'warn');
+      }
     };
-    ['shareBtn', 'shareBtn2'].forEach(function (id) { var b = document.getElementById(id); if (b) b.addEventListener('click', share); });
+    ['shareBtn', 'shareBtn2'].forEach(function (id) {
+      var b = document.getElementById(id); if (!b) return;
+      b.addEventListener('click', share);
+      b.setAttribute('aria-disabled', state.place ? 'false' : 'true');
+    });
 
   }
 
