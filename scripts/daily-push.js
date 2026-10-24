@@ -332,18 +332,19 @@ async function ensembleDistribution(opt, fc, aq, epSet, head) {
 const VERDICT = ['基本没有', '大概率没有，云边可能泛点色', '有一点机会', '有机会，顺路看一眼', '有，大概率烧起来，值得去看', '有大烧，非常壮观'];
 const WEEKDAY = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
-function mdTime(epoch, offsetSec) { return api.fmtTime(epoch, offsetSec); }
+function mdTime(epoch, offsetSec, tzName) { return api.fmtTime(epoch, offsetSec, tzName); }
 
 function render(res, opt, ens) {
   const { offsetSec } = res;
+  const tzName = res.tzName || null;   // 展示按真实时区换算（跨夏令时的 7 日表才不会差 1 小时）
   const head = res.specs[0];
   const ev = head.sunset;
   const inp = ev.inputs || {};
   const lines = [];
 
   lines.push(`**🌅 晚霞预报** · ${opt.name}`);
-  const hp = api.zonedParts(head.sunsetEpoch, offsetSec);
-  lines.push(`${head.dateStr}（${WEEKDAY[new Date(head.sunsetEpoch + offsetSec * 1000).getUTCDay()]}）`);
+  const hp = api.tzParts(tzName, head.sunsetEpoch) || api.zonedParts(head.sunsetEpoch, offsetSec);
+  lines.push(`${head.dateStr}（${WEEKDAY[hp.wd !== undefined ? hp.wd : new Date(head.sunsetEpoch + offsetSec * 1000).getUTCDay()]}）`);
   lines.push('');
   lines.push(`**${ev.gradeEmoji || ''} ${ev.grade}** ｜ 霞分 ${ev.score}/100（置信度${ev.conf}）`);
   if (ev.probability !== undefined && ev.probability !== null) {
@@ -356,14 +357,14 @@ function render(res, opt, ens) {
   lines.push('');
 
   // 关键时间
-  const sunsetStr = mdTime(head.sunsetEpoch, offsetSec);
+  const sunsetStr = mdTime(head.sunsetEpoch, offsetSec, tzName);
   const goldStart = findAltTime(opt.lat, opt.lon, head.sunsetEpoch - 90 * 60000, head.sunsetEpoch, 6);
   const blueEnd = findAltTime(opt.lat, opt.lon, head.sunsetEpoch, head.sunsetEpoch + 60 * 60000, -6);
   lines.push('**⏱️ 关键时间**');
   lines.push(`- 日落 ${sunsetStr}（方位 ${Math.round(head.sunsetBearing)}°）`);
-  lines.push(`- 最佳观赏 ${api.viewingWindow(head.sunsetEpoch, true, offsetSec)}`);
+  lines.push(`- 最佳观赏 ${api.viewingWindow(head.sunsetEpoch, true, offsetSec, tzName)}`);
   if (goldStart && blueEnd) {
-    lines.push(`- 金色时刻 ${mdTime(goldStart, offsetSec)}–${sunsetStr} ｜ 蓝调时刻 ${sunsetStr}–${mdTime(blueEnd, offsetSec)}`);
+    lines.push(`- 金色时刻 ${mdTime(goldStart, offsetSec, tzName)}–${sunsetStr} ｜ 蓝调时刻 ${sunsetStr}–${mdTime(blueEnd, offsetSec, tzName)}`);
   }
   lines.push('');
 
@@ -402,7 +403,7 @@ function render(res, opt, ens) {
   const next = res.specs[1];
   if (next && next.sunrise) {
     const sr = next.sunrise;
-    lines.push(`**🌄 明早朝霞**：${sr.gradeEmoji || ''} ${sr.grade} ｜ ${sr.score}/100（日出 ${mdTime(next.sunriseEpoch, offsetSec)}）`);
+    lines.push(`**🌄 明早朝霞**：${sr.gradeEmoji || ''} ${sr.grade} ｜ ${sr.score}/100（日出 ${mdTime(next.sunriseEpoch, offsetSec, tzName)}）`);
     lines.push('');
   }
 
@@ -411,18 +412,18 @@ function render(res, opt, ens) {
   lines.push('| 日期 | 霞分 | 等级 | 日落 |');
   lines.push('| --- | --- | --- | --- |');
   res.specs.forEach(s => {
-    const p = api.zonedParts(s.sunsetEpoch, offsetSec);
-    const mmdd = String(p.m).padStart(2, '0') + '-' + String(p.day).padStart(2, '0');
-    const wd = WEEKDAY[new Date(s.sunsetEpoch + offsetSec * 1000).getUTCDay()];
-    lines.push(`| ${mmdd} ${wd} | ${s.sunset.score} | ${s.sunset.gradeEmoji || ''} ${s.sunset.grade} | ${mdTime(s.sunsetEpoch, offsetSec)} |`);
+    const tp = api.tzParts(tzName, s.sunsetEpoch) || api.zonedParts(s.sunsetEpoch, offsetSec);
+    const mmdd = String(tp.m).padStart(2, '0') + '-' + String(tp.day).padStart(2, '0');
+    const wd = WEEKDAY[tp.wd !== undefined ? tp.wd : new Date(s.sunsetEpoch + offsetSec * 1000).getUTCDay()];
+    lines.push(`| ${mmdd} ${wd} | ${s.sunset.score} | ${s.sunset.gradeEmoji || ''} ${s.sunset.grade} | ${mdTime(s.sunsetEpoch, offsetSec, tzName)} |`);
   });
   lines.push('');
 
   const best = res.specs.slice().sort((a, b) => b.sunset.rawScore - a.sunset.rawScore)[0];
   if (best && best !== head) {
-    const p = api.zonedParts(best.sunsetEpoch, offsetSec);
-    const wd = WEEKDAY[new Date(best.sunsetEpoch + offsetSec * 1000).getUTCDay()];
-    lines.push(`**🔎 本周最有机会**：${String(p.m).padStart(2, '0')}-${String(p.day).padStart(2, '0')} ${wd} ｜ ${best.sunset.score}/100（${best.sunset.grade}）`);
+    const bp = api.tzParts(tzName, best.sunsetEpoch) || api.zonedParts(best.sunsetEpoch, offsetSec);
+    const wd = WEEKDAY[bp.wd !== undefined ? bp.wd : new Date(best.sunsetEpoch + offsetSec * 1000).getUTCDay()];
+    lines.push(`**🔎 本周最有机会**：${String(bp.m).padStart(2, '0')}-${String(bp.day).padStart(2, '0')} ${wd} ｜ ${best.sunset.score}/100（${best.sunset.grade}）`);
     lines.push('');
   }
 

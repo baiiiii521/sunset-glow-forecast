@@ -4,21 +4,25 @@
 window.GLOW = (function () {
   'use strict';
   var A = window.SunsetAlgo, API = window.SunsetAPI;
-  var GRADE = ['无烧', '微烧', '小烧', '小到中烧', '中到大烧', '大烧'];
   var SENT = { 0: '没什么戏。', 1: '云边可能泛点色。', 2: '顺路看看就行。', 3: '可以去等一等。', 4: '值得跑一趟。', 5: '别错过。' };
   var WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  // 六档名称与切点只维护 algo.js 一份（LEVELS / levelOf），这里全部委托
+  var GRADE = A.LEVELS.map(function (l) { return l.name; });
 
-  function band(score) { return score >= 80 ? 5 : score >= 65 ? 4 : score >= 50 ? 3 : score >= 35 ? 2 : score >= 20 ? 1 : 0; }
+  function band(score) { return A.levelOf(score); }
   function lvColor(level) { return 'var(--lv' + level + ')'; }
   function pad(n) { return String(n).padStart(2, '0'); }
 
-  function fmtTime(epoch, offsetSec) {
-    try { return API.fmtTime(epoch, offsetSec); } catch (e) { return '--:--'; }
+  // tzName 可选：给了就按真实时区换算（跨夏令时的预报窗口，标签才不会差 1 小时）
+  function fmtTime(epoch, offsetSec, tzName) {
+    try { return API.fmtTime(epoch, offsetSec, tzName); } catch (e) { return '--:--'; }
   }
-  function fmtDate(epoch, offsetSec) {
-    try { return API.fmtDate(epoch, offsetSec); } catch (e) { return ''; }
+  function fmtDate(epoch, offsetSec, tzName) {
+    try { return API.fmtDate(epoch, offsetSec, tzName); } catch (e) { return ''; }
   }
-  function weekday(epoch, offsetSec) {
+  function weekday(epoch, offsetSec, tzName) {
+    var t = API.tzParts ? API.tzParts(tzName, epoch) : null;
+    if (t) return WD[t.wd];
     return WD[new Date(epoch + offsetSec * 1000).getUTCDay()];
   }
 

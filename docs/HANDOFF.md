@@ -38,7 +38,7 @@ data/                     运行时数据，**gitignore，不入库**
 
 ### 3.1 访客实时（每次评估 3 个请求）
 
-1. **预报**：本地点 + 沿日出 / 日落方位角 50/150/300/400 km 的上游点；
+1. **预报**：本地点 + 沿日出 / 日落方位角 50/100/200/300/400 km 共 5 个上游点（粗筛只取 50/150/300 三个省额度）；
 2. **空气质量**：CAMS 的 AOD、PM2.5；
 3. **集合预报**：ECMWF IFS ENS，用于模式一致度。
 
@@ -115,15 +115,34 @@ air  = 降水 / AOD / 能见度 / PM2.5 / 露点差 / 风 / CAPE 的加权平均
 
 **这四个切点没有标定过**，是等距手拍值。
 
+### 4.5 2026-10-25 补充（详见 docs/changelog-2026-10-25.md）
+
+- **降水接线**：v2 空气项与封顶已改用 `precipV2`（覆盖事件那一格）；雨洗加成用 `washedV2`
+  （霞前 3 小时窗口 i,i-1,i-2，判 0 时不回退 v1 加成）。v1 字段未动。
+- **影子开关 `SunsetAlgo.FLAGS`（默认全关）**：`gapV3`（上游缺口光路几何口径）、
+  `windowAlign`（多成员云量对齐到同一时刻插值，去掉 best_match 挑最大值）。这两个开关
+  会改变分数分布，**打开前必须跑 `scripts/replay-gap.js` 看回放并征得所有者同意**。
+  金标测试（`test/glow-v2-regress.js`）保证：默认值全关被改动会直接 FAIL；
+  全关时 evaluate 层（干燥场景）与 scoreEvent 层（入库回放样例）的分数都与
+  2026-10-24 版逐位一致。
+- 展示层时间已按时区名（`tzParts`）换算，跨夏令时的预报窗口不再差 1 小时；epoch 数学未动。
+- 榜单 build 写盘前过契约校验（`scripts/lib/validate-rankings.js`），违约不落盘、退出码 3
+  （额度用尽 2）；单模式回退不再入榜；轻量刷新的分档计数按差量调整。
+
 ## 5. 现在该做什么 / 绝对不要做什么
 
 ### 该做（按价值排序）
 
-1. **上游缺口的几何权重**：现在 `1/(1+d/100)` 给近处最高权重；但按光路几何，太阳在地平线时照到 8.6 km 高云的光线在 331 km 外擦地，50 km 处光线离地 6.2 km、300 km 处只有 0.07 km——**真正挡光的低云在 200–450 km，权重方向疑似反了**。还应改成「任一处挡住」的连乘而不是取平均。改之前先写回放。
-2. **时间窗口取物理峰值**：现在 `[-30,-15,0,+15]` 取最大值、朝晚霞共用；晚霞的 −30/−15 还在日落前，而且只有 best_match 取最大值，等于给权重 3 的模式加分。应改为日落后 10–20 分钟附近的加权平均，所有成员一视同仁。
+1. **上游缺口的几何权重**：代码已就绪——`cGap3`（`algo.js`，FLAGS.gapV3 影子输出，默认关）：
+   按 α∈{1°,2°,2.9°} 光路高度 + 云层软隶属度 + 去相关连乘（L=200km）。旧 `1/(1+d/100)`
+   近处权重最高、方向相反的问题已在影子实现里纠正。**打开前连续数天跑
+   `capture-replay.js` ≥30 城，用 `replay-gap.js` 看四口径对比**（首跑 6 城：几何口径平均 +1.7 分）。
+2. **时间窗口取物理峰值**：代码已就绪——`FLAGS.windowAlign`（默认关）：所有成员对齐到
+   事件时刻线性插值，去掉综合模式挑最大值的加分。回放口径见同一脚本
+   （首跑 6 城：对齐口径平均 −0.5 分，符合「去掉系统性偏高」的预期）。
 3. **幂平均 vs 几何平均**：几何平均对单项太宽容（低云 85% 仍可给 60 分）。是否换 p≈−1~−2 需数据支撑。
-4. **CI**：`parity` + `test-rankings-schema` + `stamp-assets --check` 可以挂进 GitHub Actions。
-5. **概率分布**：4 个确定性模式 + 51 个 ENS 成员的超阈值占比，再做可靠性标定；现在 `scoreToProb` 是把别人的刻度硬套过来，未验证。
+4. ~~**CI**：`parity` + `test-rankings-schema` + `stamp-assets --check` 可以挂进 GitHub Actions。~~ 已完成（`.github/workflows/ci.yml`，2026-10-25）。
+5. **概率分布**：4 个确定性模式 + 51 个 ENS 成员的超阈值占比，再做可靠性标定；现在 `scoreToProb` 是把别人的刻度硬套过来，未验证。（推送端已接 ECMWF ENS 51 成员，见 `scripts/daily-push.js` 的集合分布段；网页端与标定仍未做。）
 
 ### 绝对不要做
 
@@ -137,9 +156,13 @@ air  = 降水 / AOD / 能见度 / PM2.5 / 露点差 / 风 / CAPE 的加权平均
 
 ```bash
 node test/parity.js                      # 必须 PASS（v1 条件分 JS vs Python）
+node test/glow-v2-regress.js             # 必须 PASS（v2 金标 / 降水封顶 / cGap3 / 插值 / DST 展示）
 node scripts/test-rankings-schema.js     # 榜单契约：字段 / grade-level-score 自洽 / 排序 / 坐标重复 / rankings-all
+node scripts/test-rankings-schema.js test/fixtures/rankings.json   # 本地 data 陈旧时用入库样例
 node scripts/stamp-assets.js --check     # v2 三页资源版本号是否过期
 node scripts/stamp-assets.js             # 改过 css/js 后必须重新打版本号
+node scripts/capture-replay.js --n 8     # 采集回放数据（联网，约 24 次调用）
+node scripts/replay-gap.js               # 离线对比新旧口径（打开 FLAGS 前必看）
 node scripts/measure-coarse-recall.js --scope china --n 60 --k 5,10,20   # 粗筛召回率（联网，约 2 分钟）
 node test/search.js / node test/smoke.js # 联网
 ```

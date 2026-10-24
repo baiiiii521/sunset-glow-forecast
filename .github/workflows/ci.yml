@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 语法检查（全部入库 js）
+        run: git ls-files '*.js' | xargs -n1 node --check
+
+      - name: v1 条件分 parity（JS vs Python fixture）
+        run: node test/parity.js
+
+      - name: v2 回归（金标 / 降水封顶 / 雨洗窗口 / cGap3 影子 / 插值 / DST 展示）
+        run: node test/glow-v2-regress.js
+
+      - name: 榜单数据契约（样例 fixture）
+        run: node scripts/test-rankings-schema.js test/fixtures/rankings.json
+
+      - name: 回放样例可复演（离线四口径对比）
+        run: node scripts/replay-gap.js test/fixtures/replay
+
+      - name: v2 三页资源版本号
+        run: node scripts/stamp-assets.js --check
+
+      - name: Python 脚本可编译
+        run: python3 -m compileall -q scripts

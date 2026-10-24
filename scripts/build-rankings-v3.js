@@ -18,6 +18,7 @@ const path = require('path');
 require('../algo.js');
 const API = require('../api.js');
 const { scoreCities } = require('./lib/score-batch.js');
+const { validateRankings } = require('./lib/validate-rankings.js');
 
 const ROOT = path.join(__dirname, '..');
 const args = process.argv.slice(2);
@@ -140,31 +141,46 @@ function counts(list) {
         fresh.push(null);
       }
     }
-    const byName = new Map(fresh.filter(Boolean).map((r) => [r.city.name, r]));
-    const apply = (list) => list.map((r) => {
+    const byName = new Map(fresh.filter(Boolean).filter((r) => r.ensemble).map((r) => [r.city.name, r]));
+    // 分档计数按差量调整：重算的条目旧档 -1、新档 +1（写盘前的契约校验要求
+    // 每档 counts ≥ 榜内条数；直接沿用全量 stats，某城刷新后升档会被拦下导致整轮不落盘）
+    const statsAdj = JSON.parse(JSON.stringify(
+      cur.stats && cur.stats.global && cur.stats.china
+        ? cur.stats : { global: { counts: [0, 0, 0, 0, 0, 0] }, china: { counts: [0, 0, 0, 0, 0, 0] } }
+    ));
+    const apply = (list, scope) => list.map((r) => {
       const f = byName.get(r.city.name);
-      // 没刷新到的城市：保留旧分数，但打上 stale，避免被当成同一时刻的数据
+      // 没刷新到、或刷新时集合请求失败（单模式回退不带 models，契约不收）：保留旧分并标 stale
       if (!f || f.coarseOnly) return { ...r, stale: true };
+      const c = statsAdj[scope] && statsAdj[scope].counts;
+      if (c && typeof r.level === 'number' && c[r.level] > 0) c[r.level] -= 1;   // 旧档
+      if (c && typeof f.level === 'number') c[f.level] += 1;                     // 新档
       return { city: f.city, score: f.score, grade: f.grade, level: f.level, conf: f.conf,
         clarity: f.clarity || null, models: f.ensemble ? f.ensemble.members.map((m) => [m.label, m.score]) : null,
         epoch: f.epoch, offsetSec: f.offsetSec, tzName: f.tzName, day: f.day, stale: false };
     });
-    const okN0 = fresh.filter(Boolean).length;
-    if (okN0 === 0) {
-      console.error(`${new Date().toISOString()} 轻量刷新全部失败，保留原榜单不动`);
+    const okN = byName.size;   // 真正入了榜的重算数（单模式拒收不算）
+    if (okN === 0) {
+      console.error(`${new Date().toISOString()} 轻量刷新全部失败（或全部被拒收），保留原榜单不动`);
       return;
     }
     const out = {
       ...cur,
       refreshedAt: Date.now(),   // 不动 computedAt：避免把旧分数伪装成新榜单
-      refresh: { ok: okN0, total: picks.length, at: Date.now(), partial: okN0 < picks.length },
-      stats: cur.stats || { global: { counts: [] }, china: { counts: [] } },   // 参评池没变，分布沿用上一次全量
-      global: apply(cur.global || []).sort((a, b) => b.score - a.score),
-      china: apply(cur.china || []).sort((a, b) => b.score - a.score)
+      refresh: { ok: okN, total: picks.length, at: Date.now(), partial: okN < picks.length },
+      stats: statsAdj,           // 参评池没变，分布按差量调整而不是重算
+      global: apply(cur.global || [], 'global').sort((a, b) => b.score - a.score),
+      china: apply(cur.china || [], 'china').sort((a, b) => b.score - a.score)
     };
+    // 写盘前在内存里过契约（与 test-rankings-schema 同一套规则）：违约不落盘，退出码 3
+    const refreshErrs = validateRankings(out, null);
+    if (refreshErrs.length) {
+      console.error(`${new Date().toISOString()} 刷新结果契约校验不通过（${refreshErrs.length} 项），不落盘、保留旧榜单：`);
+      refreshErrs.slice(0, 10).forEach((e) => console.error('  - ' + e));
+      process.exit(3);
+    }
     fs.writeFileSync(OUT + '.tmp', JSON.stringify(out));
     fs.renameSync(OUT + '.tmp', OUT);
-    const okN = okN0;
     console.error(`${new Date().toISOString()} 轻量刷新完成：${okN}/${picks.length} 城重算`);
     console.log(`全球 #1 ${out.global[0].city.name} ${out.global[0].score}  中国 #1 ${out.china[0].city.name} ${out.china[0].score}`);
     return;
@@ -205,26 +221,31 @@ function counts(list) {
   const headC = API.sortBoard(okC).slice(0, TOP_K * HEAD_MULT);
   const refine = async (list) => {
     const out = [];
+    let dropped = 0;
     for (const r of list) {
       try {
         const full = await API.evaluateNextSunset({ name: r.city.name, country: r.city.country, lat: r.city.lat, lon: r.city.lon });
+        // 集合请求失败的单模式回退不带 4 模式分数（models 为 null 违反契约），
+        // 且缺上游数据的单模式本身已被封顶 34——不参与排名，只保留但不入选
+        if (!full.ensemble) { dropped++; out.push({ ...r, coarseOnly: true }); continue; }
         out.push(full);
       } catch (e) {
         // 精算失败：不把粗分混进榜单参与排名，只保留但不入选
         out.push({ ...r, coarseOnly: true });
       }
     }
+    if (dropped) console.error(`${new Date().toISOString()} 精算因集合缺失拒收 ${dropped} 城（单模式回退不入榜）`);
     return out;
   };
   const [fineG, fineC] = await Promise.all([refine(headG), refine(headC)]);
   console.error(`${new Date().toISOString()} 精算完成：全球 ${fineG.length} / 中国 ${fineC.length}（粗筛放量 ×${HEAD_MULT}）`);
 
   const byScore = (list) => list
-    .filter((r) => !r.coarseOnly)                       // 粗分不参与排名
-    // 只排除精算失败回退的粗分；ensemble 缺失只影响置信度，不该把城市整座剔除
     .sort((a, b) => b.score - a.score);
-  const boardG = byScore(mergeSatellites(fineG));
-  const boardC = byScore(mergeSatellites(fineC));
+  // 先剔除粗分（精算失败 / 集合缺失的单模式回退），再做卫星城合并——
+  // 否则一个被拒收的大城市会把 60km 内正常精算过的卫星城也一起挤掉
+  const boardG = byScore(mergeSatellites(fineG.filter((r) => !r.coarseOnly)));
+  const boardC = byScore(mergeSatellites(fineC.filter((r) => !r.coarseOnly)));
   if (boardG.length < 5 || boardC.length < 5) {
     throw new Error(`有效城市太少（全球 ${boardG.length}、中国 ${boardC.length}），保留旧榜单`);
   }
@@ -251,13 +272,24 @@ function counts(list) {
     china: boardC.map(slim)
   };
 
+  // 写盘前在内存里过一遍契约（与 test-rankings-schema 同一套规则）：
+  // 违约不落盘、退出码 3（与额度用尽的 2 区分），旧榜单原样保留
+  const writeErrs = validateRankings(payload, all);
+  if (writeErrs.length) {
+    console.error(`${new Date().toISOString()} 榜单契约校验不通过（${writeErrs.length} 项），不落盘、保留旧榜单：`);
+    writeErrs.slice(0, 10).forEach((e) => console.error('  - ' + e));
+    process.exit(3);
+  }
+
+  // 落盘顺序固定：先 all、后 rankings——前端只读 rankings，
+  // 任何时刻它读到的都是已通过完整校验的一版
   const tmp = OUT + '.tmp';
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
-  fs.writeFileSync(tmp, JSON.stringify(payload));
-  fs.renameSync(tmp, OUT);
   const allPath = path.join(path.dirname(OUT), 'rankings-all.json');
   fs.writeFileSync(allPath + '.tmp', JSON.stringify(all));
   fs.renameSync(allPath + '.tmp', allPath);
+  fs.writeFileSync(tmp, JSON.stringify(payload));
+  fs.renameSync(tmp, OUT);
 
   const secs = ((Date.now() - t0) / 1000).toFixed(0);
   console.error(`${new Date().toISOString()} 完成 ${secs}s  池 ${payload.universe.global}+${payload.universe.china}  精算 ${payload.universe.refined}`);

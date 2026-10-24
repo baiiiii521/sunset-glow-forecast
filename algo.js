@@ -42,6 +42,14 @@
     return (pyRound(x * p) / p).toFixed(digits);
   }
 
+  /* v2 新口径开关（默认全关 = 影子模式）。这些开关会改变霞分分布，
+   * 没有标注数据不允许直接打开：先跑 scripts/replay-gap.js 看回放对比，
+   * 由所有者决定。打开/关闭只改这一处。
+   *  - gapV3：上游缺口改光路几何口径（cGap3，见下方注释）
+   *  - windowAlign：多模式成员的云量对齐到同一时刻线性插值（替代
+   *    只给 best_match 在 [-30,-15,0,+15] 里挑最大值的旧口径） */
+  var FLAGS = { gapV3: false, windowAlign: false };
+
   function destination(lat, lon, bearingDeg, distKm) {
     var R = 6371.0;
     var d = distKm / R;
@@ -155,6 +163,34 @@
     return (v === null || v === undefined) ? def : v;
   }
 
+  // 把逐小时云量在 epoch 处做整点间线性插值（frac = 距整点的小数），
+  // 返回浅拷贝（不动原数组）。某一格为 null 时取另一格（就近），
+  // 两格都 null 保持 null。用于让所有模式成员对齐到同一时刻（FLAGS.windowAlign）。
+  var CLOUD_KEYS = ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high'];
+  function blendCloudAt(hourly, epoch, offsetSec) {
+    if (!hourly || !hourly.time || !hourly.time.length) return hourly;
+    var times = hourly.time.map(function (t) { return toEpoch(t, offsetSec); });
+    var i = idxFloor(times, epoch);
+    if (i < 0 || i + 1 >= times.length) return hourly;
+    var frac = clamp((epoch - times[i]) / 3600000, 0, 1);
+    if (frac <= 0) return hourly;
+    var out = {};
+    for (var kk in hourly) if (Object.prototype.hasOwnProperty.call(hourly, kk)) out[kk] = hourly[kk];
+    CLOUD_KEYS.forEach(function (v) {
+      var arr = hourly[v];
+      if (!arr) return;
+      var a = arr[i], b = arr[i + 1];
+      var m;
+      if (a === null || a === undefined) m = (b === null || b === undefined) ? null : b;
+      else if (b === null || b === undefined) m = a;
+      else m = (1 - frac) * a + frac * b;
+      var copy = arr.slice();
+      copy[i] = m;
+      out[v] = copy;
+    });
+    return out;
+  }
+
   /* ---------------- 各分项评分：返回 [分数(0-100 或 null), 说明] ---------------- */
 
   function cCurtain(mid, high) {
@@ -215,6 +251,84 @@
     if (s >= 80) return [s, '太阳方向晴空缺口大（' + txt + '）'];
     if (s >= 50) return [s, '太阳方向有部分低 / 中云（' + txt + '）'];
     return [s, '太阳方向低 / 中云多，缺口小（' + txt + '）'];
+  }
+
+  /* ---------------- cGap3：按光路几何算缺口（影子输出，FLAGS.gapV3 控制，默认关） ----------------
+   * 几何：太阳压到地平线下 α 度时，射向本地高度 h 云底的光，在朝太阳方向 d km 处
+   * 离地 z = h − d·tanα + d²/2R。α=0 时光线随距离升高（远处挡不到）；α 逼近
+   * 照亮极限 −√(2h/R)（高云 8.6km→2.98°、中云 5.2km→2.31°）时在 d=tanα·R 处擦地
+   * （高云约 331km），那时低云才真正挡光。旧口径 1/(1+d/100) 给近处最高权重，
+   * 方向恰好相反——但也不能只取照亮极限那一刻（多数时候光路还很高，低云挡不到）。
+   * 所以按 α ∈ {1°,2°,2.9°}（约日落后 1/6/12 分钟）取阶段平均，每阶段只算
+   * α 小于该层照亮极限的部分。
+   * 每点挡光量：光线高度 z 对云层的「软隶属度」（低云 0–3.5km、中云 3–6.5km，
+   * 不设硬阈值，避免 3.36km vs 3.5km 这种边界翻转）；沿光路合成
+   * T = Π(1−cᵢ)^(Δdᵢ/L)，去相关长度 L=200km（相邻模式格点云量不独立，
+   * 纯连乘会把碎云当成五道独立的墙，过度悲观）。 */
+  var GAP3 = {
+    STAGES_DEG: [1, 2, 2.9],
+    TOPS: { low: 3.5, mid: 6.5 },
+    MID_BASE_KM: 3.0,
+    DECORR_KM: 200
+  };
+  function gap3Membership(kind, zKm) {
+    if (kind === 'low') return clamp((GAP3.TOPS.low - zKm) / GAP3.TOPS.low, 0, 1);
+    // 中云是梯形：光线在中云底(≈3km)以下穿过就不该被它挡住（z≤2 完全不算，
+    // 2–3km 过渡）；只设上界会把从云底下方掠过的光也当成全挡
+    return clamp((zKm - GAP3.MID_BASE_KM + 1) / 1, 0, 1) * clamp((GAP3.TOPS.mid - zKm) / (GAP3.TOPS.mid - GAP3.MID_BASE_KM), 0, 1);
+  }
+  // pts: [{d, low, mid}]（d=km，low/mid=百分比或 null）；midLocal/highLocal 用于按幕布构成加权两条光路
+  function cGap3(pts, midLocal, highLocal) {
+    var usable = (pts || []).filter(function (p) {
+      return p && p.d != null && ((p.low != null) || (p.mid != null));
+    });
+    if (!usable.length) return [null, '无上游云量数据'];
+    usable.sort(function (a, b) { return a.d - b.d; });
+    // 每个采样点代表的光路长度（中点规则；单点按 100km 计），
+    // 再归一到固定总长：精算 5 点合计约 425km、粗筛 3 点只有约 325km，
+    // 不归一的话同样云况下粗筛透射会更乐观，粗筛排名会偏
+    var spans = usable.map(function (p, k) {
+      var prev = k > 0 ? usable[k - 1].d : Math.max(0, p.d - 100);
+      var next = k < usable.length - 1 ? usable[k + 1].d : p.d + 100;
+      return Math.max(1, (next - prev) / 2);
+    });
+    var spanTotal = spans.reduce(function (a, b) { return a + b; }, 0);
+    var PATH_KM = 450;   // 光路代表长度：0 到最后一个采样点外延
+    spans = spans.map(function (s) { return s * PATH_KM / spanTotal; });
+    function deckT(deckH) {
+      var limitDeg = -illuminationLimit(deckH);
+      var stages = GAP3.STAGES_DEG.filter(function (a) { return a < limitDeg; });
+      if (!stages.length) return null;
+      var ts = stages.map(function (aDeg) {
+        var tanA = Math.tan(aDeg * Math.PI / 180);
+        var T = 1;
+        usable.forEach(function (p, k) {
+          var z = deckH - p.d * tanA + p.d * p.d / (2 * R_EARTH);
+          if (z < 0) z = 0;
+          var c = 0;
+          if (p.low != null) { var cl = gap3Membership('low', z) * p.low / 100; c = c + cl - c * cl; }
+          if (p.mid != null) { var cm = gap3Membership('mid', z) * p.mid / 100; c = c + cm - c * cm; }
+          T *= Math.pow(1 - c, spans[k] / GAP3.DECORR_KM);
+        });
+        return Math.max(T, 0.05);
+      });
+      return ts.reduce(function (a, b) { return a + b; }, 0) / ts.length;
+    }
+    var tHigh = deckT(DECK_BASE.high), tMid = deckT(DECK_BASE.mid);
+    var hi = clamp(highLocal || 0, 0, 100), mi = clamp(midLocal || 0, 0, 100);
+    // 幕布以高云为主时看高云光路，以中云为主时看中云光路；两者都无云时等权
+    var share = (hi + mi) > 0 ? hi / (hi + mi) : 0.5;
+    var parts = [];
+    if (tHigh !== null) parts.push([share, tHigh]);
+    if (tMid !== null) parts.push([1 - share, tMid]);
+    if (!parts.length) return [null, '无上游云量数据'];
+    var wsum = parts.reduce(function (a, x) { return a + x[0]; }, 0);
+    var T = parts.reduce(function (a, x) { return a + x[0] * x[1]; }, 0) / (wsum || 1);
+    var s = clamp(100 * T, 0, 100);
+    var txt = '光路透射 ' + fmtFixed(T * 100, 0) + '%';
+    if (s >= 80) return [s, '太阳方向光路通畅（' + txt + '）'];
+    if (s >= 50) return [s, '太阳方向光路部分被挡（' + txt + '）'];
+    return [s, '太阳方向光路被挡（' + txt + '）'];
   }
 
   function cPrecip(precip, prob) {
@@ -325,9 +439,14 @@
 
     var pre3 = 0;
     for (var k = 1; k <= 3; k++) pre3 += hv(h, 'precipitation', i - k, 0) || 0;
+    // v2 雨洗窗口：i,i-1,i-2 三格（前一小时口径下覆盖 [i-3h, i]，即「霞前 3 小时」；
+    // 旧 pre3 取 i-1..i-3，漏掉紧贴事件的那一小时）。「霞时刻停没停」由 ip 那格单独判断，
+    // 同一小时的雨不会既算「洗净」又算「未停」。
+    var pre3V2 = 0;
+    for (var k2 = 0; k2 <= 2; k2++) pre3V2 += hv(h, 'precipitation', i - k2, 0) || 0;
 
     // 上游晴空缺口：upstreamFcs 按 50/150/300km 顺序
-    var upLow = [], upTotal = [], upMid = [], upW = [];
+    var upLow = [], upTotal = [], upMid = [], upW = [], upPts = [];
     (upstreamFcs || []).forEach(function (fcUp, idxUp) {
       if (!fcUp || !fcUp.hourly) return;
       var upOffset = (fcUp.utc_offset_seconds !== undefined && fcUp.utc_offset_seconds !== null)
@@ -342,6 +461,11 @@
       if (l !== null && l !== undefined) { upLow.push(l); upW.push(w); }
       if (mm !== null && mm !== undefined) upMid.push(mm);
       if (t !== null && t !== undefined) upTotal.push(t);
+      // cGap3 用：每点 {d, low, mid}（d 缺失的点它自己会剔除）
+      upPts.push({
+        d: (upDist && upDist[idxUp] !== undefined) ? upDist[idxUp] : null,
+        low: l, mid: mm
+      });
     });
     var wsum = upW.reduce(function (a, b) { return a + b; }, 0);
     var upLowAvg = (upLow.length && wsum)
@@ -366,9 +490,11 @@
       low: cloudMissing ? [null, '缺云量数据'] : cLow(low),
       gap: cGap(upLowAvg, upTotalAvg),
       gapV2: cloudMissing ? [null, '缺云量数据'] : cGap2(upLowAvg, upMidAvg),
+      gapV3: cloudMissing ? [null, '缺云量数据'] : cGap3(upPts, mid, high),
       precip: cPrecip(precip, prob),
       precipV2: cPrecip(precipV2 === null ? precip : precipV2, probV2 === null ? prob : probV2),
       washed: cWashed(pre3, precip, prob),
+      washedV2: cWashed(pre3V2, precipV2 === null ? precip : precipV2, probV2 === null ? prob : probV2),
       aod: cAod(aod),
       vis: cVis(vis),
       pm: cPm(pm),
@@ -425,14 +551,21 @@
     if (comps.washed[0] === 100) reasons.push(comps.washed[1]);
     if (hazeNote) reasons.push(hazeNote);
 
-    // v2 理由：缺口换成 v2 版本（v1 的 reasons 保持与 predict.py 一致）
+    // v2 理由：全部分项换 v2 口径（幕布/缺口/降水/雨洗），v1 的 reasons 保持与 predict.py 一致
+    var gapCompName = (FLAGS.gapV3 && comps.gapV3[0] !== null && comps.gapV3[0] !== undefined) ? 'gapV3' : 'gapV2';
     var othersV2 = WEIGHTS
       .filter(function (w) { return w[0] !== 'curtain'; })
-      .map(function (w) { var c = comps[w[0] === 'gap' ? 'gapV2' : w[0]]; return { s: c[0], label: c[1] }; })
+      .map(function (w) {
+        var name = w[0];
+        if (name === 'gap') name = gapCompName;
+        else if (name === 'precip') name = 'precipV2';
+        var c = comps[name];
+        return { s: c[0], label: c[1] };
+      })
       .filter(function (o) { return o.s !== null && o.s !== undefined; })
       .sort(function (a, b) { return a.s - b.s; });
-    var reasonsV2 = [comps.curtain[1]].concat(othersV2.slice(0, 2).map(function (o) { return o.label; }));
-    if (comps.washed[0] === 100) reasonsV2.push(comps.washed[1]);
+    var reasonsV2 = [comps.curtainV2[1]].concat(othersV2.slice(0, 2).map(function (o) { return o.label; }));
+    if (comps.washedV2[0] === 100) reasonsV2.push(comps.washedV2[1]);
     if (hazeNote) reasonsV2.push(hazeNote);
 
     // 剧本类型
@@ -477,7 +610,7 @@
         dewSpread: (temp === null || temp === undefined || dew === null || dew === undefined) ? null : temp - dew,
         temp: temp, dewPoint: dew,
         windSpeed: ws, windDir: wd, cape: cape,
-        upLowAvg: upLowAvg, upTotalAvg: upTotalAvg, upMidAvg: upMidAvg, pre3: pre3
+        upLowAvg: upLowAvg, upTotalAvg: upTotalAvg, upMidAvg: upMidAvg, pre3: pre3, pre3V2: pre3V2
       }
     };
   }
@@ -513,12 +646,17 @@
   }
 
   var KEY_W = [['curtainV2', 0.5], ['gapV2', 0.3], ['low', 0.2]];
-  var AIR_W = [['precip', 10], ['aod', 5], ['vis', 3], ['pm', 3], ['dew', 2], ['wind', 2], ['cape', 2]];
+  var AIR_W = [['precipV2', 10], ['aod', 5], ['vis', 3], ['pm', 3], ['dew', 2], ['wind', 2], ['cape', 2]];
 
   function glow(comps) {
+    // 空气项和封顶一律用 precipV2（覆盖事件那一小时的降水，Open-Meteo 是前一小时口径）；
+    // 外部手工构造的 comps 可能没有 precipV2，两处都留了回退
+    var gapCompName = (FLAGS.gapV3 && comps.gapV3 && comps.gapV3[0] !== null && comps.gapV3[0] !== undefined)
+      ? 'gapV3' : 'gapV2';
     var lw = 0, ls = 0, keyMissing = false, minKey = 100;
     KEY_W.forEach(function (w) {
-      var s = comps[w[0]][0];
+      var name = (w[0] === 'gapV2') ? gapCompName : w[0];
+      var s = comps[name][0];
       if (s === null || s === undefined) { keyMissing = true; return; }   // 缺数据：不假装它通过
       if (s < minKey) minKey = s;
       lw += w[1];
@@ -530,14 +668,20 @@
     if (minKey < 10) key *= minKey / 10;
     var aw = 0, as = 0;
     AIR_W.forEach(function (w) {
-      var s = comps[w[0]][0];
+      var c = comps[w[0]] || (w[0] === 'precipV2' ? comps.precip : null);   // 防御：外部手工构造的 comps 可能没有 precipV2
+      if (!c) return;
+      var s = c[0];
       if (s === null || s === undefined) return;
       aw += w[1]; as += w[1] * s;
     });
     var air = aw ? as / aw : 70;
     var g = key * (0.7 + 0.3 * air / 100);
-    if (comps.washed[0]) g += comps.washed[0] * 0.05; // 雨后洗净：最多 +5
-    if (comps.precip[0] === 0) g = Math.min(g, 34); // 霞时刻降水：最高微烧
+    // 雨后洗净：最多 +5，用 v2 窗口。注意 washedV2[0]===0 是「判定没洗」，不是缺数据，
+    // 不能因 0 是假值就回退 v1 加成（否则 v2 的窗口修正等于没生效）
+    var washedComp = comps.washedV2 || comps.washed;
+    if (washedComp[0]) g += washedComp[0] * 0.05;
+    var precipCap = comps.precipV2 || comps.precip;
+    if (precipCap[0] === 0) g = Math.min(g, 34); // 霞时刻降水：最高微烧
     // 幕布/缺口/低云任一项缺数据：最多给到「微烧」，不拿未知当利好
     if (keyMissing) g = Math.min(g, 34);
     comps.__incomplete = keyMissing;
@@ -621,8 +765,9 @@
     sunsetBearing: sunsetBearing, sunriseBearing: sunriseBearing,
     toEpoch: toEpoch, idxFloor: idxFloor, idxNearest: idxNearest, hv: hv,
     cCurtain: cCurtain, cCurtainV2: cCurtainV2, cLow: cLow, cGap: cGap, cPrecip: cPrecip,
-    cWashed: cWashed, cGap2: cGap2, cAod: cAod, cVis: cVis, cPm: cPm, cDew: cDew,
+    cWashed: cWashed, cGap2: cGap2, cGap3: cGap3, GAP3: GAP3, cAod: cAod, cVis: cVis, cPm: cPm, cDew: cDew,
     cWind: cWind, cCape: cCape, WEIGHTS: WEIGHTS, evaluate: evaluate,
+    FLAGS: FLAGS, blendCloudAt: blendCloudAt,
     LEVELS: LEVELS, LEVEL_BOUNDS: LEVEL_BOUNDS, levelOf: levelOf, levelConf: levelConf,
     glow: glow, clarityOf: clarityOf, CLARITY: CLARITY, combine: combine,
     deckLum: deckLum, illuminationLimit: illuminationLimit, curtainLight: curtainLight,

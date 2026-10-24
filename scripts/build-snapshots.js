@@ -35,10 +35,19 @@ function fromRankings() {
   const cities = {};
   all.forEach((r) => {
     if (!r || !r.city) return;
+    // 方位角现场算（榜单里没存），零 API 成本；epoch/lat 不合法时存 null，前端显示 —
+    let bearing = null;
+    const d = new Date(r.epoch);
+    if (r.epoch && isFinite(d.getTime()) && typeof r.city.lat === 'number') {
+      const doy = Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) -
+        Date.UTC(d.getUTCFullYear(), 0, 0)) / 86400000);
+      const b = globalThis.SunsetAlgo.sunsetBearing(r.city.lat, doy);
+      bearing = isFinite(b) ? b : null;
+    }
     cities[r.city.name + '|' + Number(r.city.lat).toFixed(2) + '|' + Number(r.city.lon).toFixed(2)] = {
       score: r.score, grade: r.grade, level: r.level, conf: r.conf,
       clarity: r.clarity || null, epoch: r.epoch, offsetSec: r.offsetSec,
-      tzName: r.tzName, bearing: null, day: r.day
+      tzName: r.tzName, bearing: bearing, day: r.day
     };
   });
   const payload = { version: 1, computedAt: rk.computedAt, count: Object.keys(cities).length, source: 'rankings', cities };

@@ -108,21 +108,57 @@
     return Math.floor((Date.UTC(y, m - 1, day) - Date.UTC(y, 0, 0)) / 86400000);
   }
 
-  function fmtTime(epoch, offsetSec) {
-    return zonedParts(epoch, offsetSec).timeStr;
+  /* 按时区名取墙上时间（夏令时正确）。Open-Meteo 的 utc_offset_seconds 是起报时刻的
+   * 固定偏移：预报窗口跨夏令时切换时，后半段的时间标签会比当地真实钟表时间差 1 小时
+   * （epoch 数学自洽，分数/选格/已过判断都对，只是给人看的标签要换算）。
+   * 格式化器按时区缓存；构造或解析失败（老 Safari / 非法时区名）返回 null，调用方回落固定偏移。 */
+  var _tzFmt = {};
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function tzParts(tzName, epoch) {
+    if (!tzName || typeof Intl === 'undefined' || !Intl.DateTimeFormat) return null;
+    var f = _tzFmt[tzName];
+    if (f === undefined) {
+      try {
+        f = new Intl.DateTimeFormat('en-US', {
+          timeZone: tzName, hourCycle: 'h23', year: 'numeric', month: 'numeric',
+          day: 'numeric', weekday: 'short', hour: 'numeric', minute: 'numeric'
+        });
+      } catch (e) { f = null; }
+      _tzFmt[tzName] = f;
+    }
+    if (!f) return null;
+    try {
+      var p = {};
+      f.formatToParts(new Date(epoch)).forEach(function (x) { p[x.type] = x.value; });
+      var wdMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      var wd = wdMap[p.weekday];
+      if (wd === undefined || p.year === undefined || p.hour === undefined) return null;
+      var y = +p.year, mo = +p.month, d = +p.day, hh = +p.hour % 24, mm = +(p.minute || 0);   // %24：个别引擎忽略 hourCycle 会把午夜输出成 24
+      return {
+        y: y, m: mo, day: d, hh: hh, mm: mm, wd: wd,
+        dateStr: y + '-' + pad2(mo) + '-' + pad2(d),
+        timeStr: pad2(hh) + ':' + pad2(mm)
+      };
+    } catch (e) { return null; }
   }
 
-  function fmtDate(epoch, offsetSec) {
-    var p = zonedParts(epoch, offsetSec);
-    var wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][new Date(epoch + offsetSec * 1000).getUTCDay()];
+  function fmtTime(epoch, offsetSec, tzName) {
+    var t = tzParts(tzName, epoch);
+    return t ? t.timeStr : zonedParts(epoch, offsetSec).timeStr;
+  }
+
+  function fmtDate(epoch, offsetSec, tzName) {
+    var t = tzParts(tzName, epoch);
+    var p = t || zonedParts(epoch, offsetSec);
+    var wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][t ? t.wd : new Date(epoch + offsetSec * 1000).getUTCDay()];
     return p.m + '月' + p.day + '日（' + wd + '）';
   }
 
   // 最佳观测窗：日落 -15~+30 分钟；日出 -30~+15 分钟（经验窗口，仅供参考）
-  function viewingWindow(epoch, isSunset, offsetSec) {
+  function viewingWindow(epoch, isSunset, offsetSec, tzName) {
     var start = epoch + (isSunset ? -15 : -30) * 60000;
     var end = epoch + (isSunset ? 30 : 15) * 60000;
-    return '约 ' + fmtTime(start, offsetSec) + '–' + fmtTime(end, offsetSec);
+    return '约 ' + fmtTime(start, offsetSec, tzName) + '–' + fmtTime(end, offsetSec, tzName);
   }
 
   /* ---------------- 城市搜索（含南阳 bug 修复） ---------------- */
@@ -242,18 +278,27 @@
     }).then(function (j) { return Array.isArray(j) ? j : [j]; }).catch(function () { return null; });
   }
 
-  // 从多模式返回里取出某个模式、某个点的云量，按 baseTimes（主预报的时间轴）对齐
-  function memberHourly(loc, model, baseTimes) {
-    if (!loc || !loc.hourly) return null;
-    var h = loc.hourly, pos = {};
-    (h.time || []).forEach(function (t, k) { pos[t] = k; });
+  // 从多模式返回里取出某个模式、某个点的云量，按 baseTimes（主预报的时间轴）对齐。
+  // 对齐按 epoch（用各自响应的 utc_offset_seconds 换算），不按时间字符串——
+  // 两张响应的起报时间跨夏令时切换时固定偏移不同，字符串对齐会整列落空或错位。
+  function memberHourly(loc, model, baseTimes, baseOffsetSec) {
+    if (!loc || !loc.hourly || !loc.hourly.time || !loc.hourly.time.length) return null;
+    var h = loc.hourly;
+    var locOffset = (loc.utc_offset_seconds !== undefined && loc.utc_offset_seconds !== null)
+      ? loc.utc_offset_seconds : (baseOffsetSec || 0);
+    var locEpochs = h.time.map(function (t) { return A.toEpoch(t, locOffset); });
+    // 下标映射只算一遍（每变量重复扫是 O(n²)×4，七天 × 六点 × 四模式时开销可观）
+    var baseIdx = baseTimes.map(function (t) {
+      var e = A.toEpoch(t, baseOffsetSec || 0);
+      var k = A.idxNearest(locEpochs, e);
+      return (Math.abs(locEpochs[k] - e) > 30 * 60000) ? -1 : k;   // 差超过半小时视为没有这一格
+    });
     var out = { time: baseTimes };
     var any = false;
     CLOUD_VARS.forEach(function (v) {
       var arr = h[v + '_' + model];
-      out[v] = baseTimes.map(function (t) {
-        var k = pos[t];
-        var x = (k === undefined || !arr) ? null : arr[k];
+      out[v] = baseIdx.map(function (k) {
+        var x = (k < 0 || !arr) ? null : arr[k];
         if (x !== null && x !== undefined) any = true;
         return x === undefined ? null : x;
       });
@@ -294,28 +339,42 @@
       var baseTimes = fc.hourly.time || [];
       var times = baseTimes.map(function (t) { return A.toEpoch(t, offsetSec); });
       var i = A.idxFloor(times, eventEpoch);
+      // 时间对齐口径（默认关）：所有成员的云量取同一时刻（事件时刻），
+      // 逐小时成员在整点间线性插值——旧口径只给综合模式在 4 个时刻里挑最大值，
+      // 等于给权重 3 的成员系统性加分，其余成员还停在最多早 59 分钟的整点格上
+      var align = A.FLAGS && A.FLAGS.windowAlign;
       var members = MODELS.map(function (m) {
-        var lh = memberHourly(ens[0], m[0], baseTimes);
+        var lh = memberHourly(ens[0], m[0], baseTimes, offsetSec);
         if (!lh || !hasCloudAt(lh, i)) return null;
+        if (align) lh = A.blendCloudAt(lh, eventEpoch, offsetSec);
         var hourly = shallowCopy(fc.hourly);
         CLOUD_VARS.forEach(function (v) { hourly[v] = lh[v]; });
         var fcM = { hourly: hourly, utc_offset_seconds: offsetSec };
+        // 上游点保留 null 占位：下标与 upDist 对齐，evaluate 自己跳过空点。
+        // 原来 filter 掉空点会让后面所有点的距离权重整体错一位。
         var ups = upIdx.map(function (k) {
-          var uh = memberHourly(ens[k], m[0], baseTimes);
-          return uh ? { hourly: uh, utc_offset_seconds: offsetSec } : null;
-        }).filter(function (x) { return !!x; });
+          var uh = memberHourly(ens[k], m[0], baseTimes, offsetSec);
+          if (!uh) return null;
+          var hh = align ? A.blendCloudAt(uh, eventEpoch, offsetSec) : uh;
+          return { hourly: hh, utc_offset_seconds: offsetSec };
+        });
         var memberRes;
         if (m[0] === 'best_match' && fc.minutely_15) {
-          // 综合模式用 15 分钟云量，在日落前后 30 分钟窗口里取霞分最高的那一刻
-          var best = null;
-          [-30, -15, 0, 15].forEach(function (dt) {
-            var e = eventEpoch + dt * 60000;
-            var ov = minutelyCloud(fc, offsetSec, e);
-            var r = A.evaluate(fcM, aq, ups, e, bearing, offsetSec, ov, upDist);
-            if (!best || r.rawScore > best.r.rawScore) best = { r: r, dt: dt };
-          });
-          memberRes = best.r;
-          memberRes.peakOffsetMin = best.dt;
+          if (align) {
+            var ov = minutelyCloud(fc, offsetSec, eventEpoch);
+            memberRes = A.evaluate(fcM, aq, ups, eventEpoch, bearing, offsetSec, ov, upDist);
+          } else {
+            // 综合模式用 15 分钟云量，在日落前后 30 分钟窗口里取霞分最高的那一刻
+            var best = null;
+            [-30, -15, 0, 15].forEach(function (dt) {
+              var e = eventEpoch + dt * 60000;
+              var ov2 = minutelyCloud(fc, offsetSec, e);
+              var r = A.evaluate(fcM, aq, ups, e, bearing, offsetSec, ov2, upDist);
+              if (!best || r.rawScore > best.r.rawScore) best = { r: r, dt: dt };
+            });
+            memberRes = best.r;
+            memberRes.peakOffsetMin = best.dt;
+          }
         } else {
           memberRes = A.evaluate(fcM, aq, ups, eventEpoch, bearing, offsetSec, null, upDist);
         }
@@ -581,7 +640,7 @@
 
   var api = {
     fetchJSON: fetchJSON,
-    zonedParts: zonedParts, dayOfYear: dayOfYear,
+    zonedParts: zonedParts, tzParts: tzParts, dayOfYear: dayOfYear,
     fmtTime: fmtTime, fmtDate: fmtDate, viewingWindow: viewingWindow,
     searchPlaces: searchPlaces, rankScore: rankScore, normalizePlace: normalizePlace,
     evaluatePlace: evaluatePlace, evaluateNextSunset: evaluateNextSunset,

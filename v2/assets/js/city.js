@@ -59,17 +59,18 @@
     }
     if (picked) {
       var plv = picked.level != null ? picked.level : G.band(picked.score);
-      var pwin = API.viewingWindow ? API.viewingWindow(picked.epoch, picked.type === 'sunset', d.offsetSec).replace('约 ', '') : '—';
+      var tz = d.tzName || null;
+      var pwin = API.viewingWindow ? API.viewingWindow(picked.epoch, picked.type === 'sunset', d.offsetSec, tz).replace('约 ', '') : '—';
       if ($('#tdTitle')) $('#tdTitle').textContent = '这一天的晚霞';
-      $('#tdCap').textContent = '所选日期 · ' + G.fmtDate(picked.epoch, d.offsetSec) +
+      $('#tdCap').textContent = '所选日期 · ' + G.fmtDate(picked.epoch, d.offsetSec, tz) +
         ' · 点矩阵里「今天」那一列可回到当前场次';
       $('#todayRow').innerHTML =
         '<div class="tcard big" style="--c:' + gradeColor(plv) + '">' +
-          '<div class="lab">' + (picked.type === 'sunset' ? '日落' : '日出') + ' · ' + G.fmtDate(picked.epoch, d.offsetSec) + '</div>' +
+          '<div class="lab">' + (picked.type === 'sunset' ? '日落' : '日出') + ' · ' + G.fmtDate(picked.epoch, d.offsetSec, tz) + '</div>' +
           '<div class="tscore">' + picked.score + '<span>/100</span></div>' +
           '<div class="tgrade">' + (G.GRADE[plv] || picked.grade) + ' · ' + G.SENT[plv] + '</div>' +
         '</div>' +
-        [['最佳窗口', pwin], [picked.type === 'sunrise' ? '日出' : '日落', G.fmtTime(picked.epoch, d.offsetSec)],
+        [['最佳窗口', pwin], [picked.type === 'sunrise' ? '日出' : '日落', G.fmtTime(picked.epoch, d.offsetSec, tz)],
          ['方位', Math.round(picked.bearing || 0) + '°'], ['通透', (picked.clarity && picked.clarity.score) || '—'],
          ['把握', picked.conf || '—'], ['成员一致', (picked.ensemble && picked.ensemble.agreePct != null) ? picked.ensemble.agreePct + '%' : '—'], ['模式', (((picked.ensemble && picked.ensemble.members) || []).length || '—') + ' 个']]
           .map(function (r) { return '<div class="tcard"><div class="lab">' + r[0] + '</div><div class="tv">' + r[1] + '</div></div>'; }).join('');
@@ -86,15 +87,16 @@
     }
     var ev = d.events.filter(function (e) { return e.epoch > now - 20 * 60000; })[0] || d.events[0];
     var lv = ev.level != null ? ev.level : G.band(ev.score);
-    var win = API.viewingWindow ? API.viewingWindow(ev.epoch, ev.type === 'sunset', d.offsetSec).replace('约 ', '') : '—';
-    $('#tdCap').textContent = '取数于 ' + G.fmtTime(d.fetchedAt, d.offsetSec) + ' · 下一个' + (ev.type === 'sunset' ? '日落' : '日出') + '场';
+    var tz2 = d.tzName || null;
+    var win = API.viewingWindow ? API.viewingWindow(ev.epoch, ev.type === 'sunset', d.offsetSec, tz2).replace('约 ', '') : '—';
+    $('#tdCap').textContent = '取数于 ' + G.fmtTime(d.fetchedAt, d.offsetSec, tz2) + ' · 下一个' + (ev.type === 'sunset' ? '日落' : '日出') + '场';
     $('#todayRow').innerHTML =
       '<div class="tcard big" style="--c:' + gradeColor(lv) + '">' +
-        '<div class="lab">' + (ev.type === 'sunset' ? '日落' : '日出') + ' · ' + G.fmtDate(ev.epoch, d.offsetSec) + '</div>' +
+        '<div class="lab">' + (ev.type === 'sunset' ? '日落' : '日出') + ' · ' + G.fmtDate(ev.epoch, d.offsetSec, tz2) + '</div>' +
         '<div class="tscore">' + ev.score + '<span>/100</span></div>' +
         '<div class="tgrade">' + (G.GRADE[lv] || ev.grade) + ' · ' + G.SENT[lv] + '</div>' +
       '</div>' +
-      [['最佳窗口', win], [ev.type === 'sunrise' ? '日出' : '日落', G.fmtTime(ev.epoch, d.offsetSec)], ['方位', Math.round(ev.bearing || 0) + '°'],
+      [['最佳窗口', win], [ev.type === 'sunrise' ? '日出' : '日落', G.fmtTime(ev.epoch, d.offsetSec, tz2)], ['方位', Math.round(ev.bearing || 0) + '°'],
        ['通透', (ev.clarity && ev.clarity.score) || '—'], ['把握', ev.conf || '—'],
        ['成员一致', (ev.ensemble && ev.ensemble.agreePct != null) ? ev.ensemble.agreePct + '%' : '—'],
        ['模式', (((ev.ensemble && ev.ensemble.members) || []).length || '—') + ' 个']]
@@ -150,7 +152,8 @@
   function renderDeck() {
     var w = state.week; if (!w) return;
     var day = w.days[state.idx];
-    var anchor = (day.sunset || day.sunrise);
+    // 剖面与「这一天」卡片同口径：筛选朝霞时以日出为轴心
+    var anchor = (state.scope === 'sunrise' ? day.sunrise : day.sunset) || day.sunset || day.sunrise;
     if (!anchor) { $('#dkCap').textContent = '这天没有可用数据'; return; }
 
     var hourly = w.fc.hourly || {};
@@ -205,14 +208,15 @@
     $('#dkTitle').textContent = '三层云，各自在挡什么。';
     $('#dkCap').textContent = new Date(day.date + 'T12:00:00Z').getUTCMonth() + 1 + ' 月 ' +
       new Date(day.date + 'T12:00:00Z').getUTCDate() + ' 日 · 以 ' +
-      (anchor.type === 'sunset' ? '日落 ' : '日出 ') + G.fmtTime(anchor.epoch, off) + ' 为轴心，前后三小时。';
+      (anchor.type === 'sunset' ? '日落 ' : '日出 ') + G.fmtTime(anchor.epoch, off, w.tzName) + ' 为轴心，前后三小时。';
   }
 
   /* ---------- 模式 ---------- */
   function renderModels() {
     var w = state.week; if (!w) return;
     var day = w.days[state.idx];
-    var ev = day.sunset || day.sunrise;
+    // 模式区跟「这一天」卡片同口径：筛选朝霞时显示朝霞那场的模式分歧
+    var ev = (state.scope === 'sunrise' ? day.sunrise : day.sunset) || day.sunset || day.sunrise;
     var mem = (ev && ev.ensemble && ev.ensemble.members) || [];
     var lvms = { best_match: '综合 ×3', ecmwf_ifs025: 'ECMWF', gfs_seamless: 'GFS', icon_seamless: 'ICON' };
     if (!mem.length) { $('#modelsBox').innerHTML = '<div class="small">这场没有模式数据</div>'; return; }
@@ -254,7 +258,7 @@
         } else {
           el.className = 'board-badge live' + (stale ? ' stale' : '');
           el.textContent = (stale ? '榜单已过期（生成于 ' + stamp + '）' : '该城市不在今日霞榜') +
-            ' · 已按实时数据现算（取数 ' + G.fmtTime(fetchedAt, offset) + '）';
+            ' · 已按实时数据现算（取数 ' + G.fmtTime(fetchedAt, offset, state.data && state.data.tzName) + '）';
         }
       }).catch(function () {
         el.className = 'board-badge live';
@@ -276,8 +280,8 @@
           '<div class="lab">快照 · ' + (r.day === 'today' ? '今天' : '明天') + '</div>' +
           '<div class="tscore">' + r.score + '<span>/100</span></div>' +
           '<div class="tgrade">' + (G.GRADE[lv] || r.grade) + '</div></div>' +
-        '<div class="tcard"><div class="lab">日落</div><div class="tv">' + G.fmtTime(r.epoch, r.offsetSec) + '</div></div>' +
-        '<div class="tcard"><div class="lab">方位</div><div class="tv">' + Math.round(r.bearing || 0) + '°</div></div>';
+        '<div class="tcard"><div class="lab">日落</div><div class="tv">' + G.fmtTime(r.epoch, r.offsetSec, r.tzName) + '</div></div>' +
+        '<div class="tcard"><div class="lab">方位</div><div class="tv">' + (r.bearing != null ? Math.round(r.bearing) + '°' : '—') + '</div></div>';
       G.setSky(lv, r.day === 'sunrise', true);
     });
   }
@@ -291,7 +295,7 @@
     paintFromSnapshot();
     FORECAST.fourEvents(place.lat, place.lon).then(function (d) {
       state.data = d; renderToday(); renderBoardBadge(d.fetchedAt, d.offsetSec);
-      state.updAt = '更新 ' + G.fmtTime(d.fetchedAt, d.offsetSec);
+      state.updAt = '更新 ' + G.fmtTime(d.fetchedAt, d.offsetSec, d.tzName);
       var el = document.getElementById('updAt'); if (el) el.textContent = state.updAt;
     }).catch(function (e) {
       console.error(e);
@@ -324,7 +328,8 @@
       b.addEventListener('click', function () {
         state.scope = b.dataset.k;
         $$('.ctab').forEach(function (x) { var on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-selected', on); });
-        renderMatrix();
+        // 切朝/晚后，「这一天」卡片、剖面轴心、模式区都要跟着换，不能只重画矩阵
+        renderToday(); renderMatrix(); renderDeck(); renderModels();
       });
     });
 
@@ -333,7 +338,6 @@
       if (navigator.share) navigator.share({ title: place.name + ' 霞预报', url: location.href }).catch(function () {});
       else navigator.clipboard.writeText(location.href);
     });
-    G.initSearch({});
   }
 
   boot();

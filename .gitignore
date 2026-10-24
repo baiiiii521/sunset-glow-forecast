@@ -4,6 +4,10 @@ data/
 # v2 构建产物
 !v2/assets/fonts/
 
+# Python
+__pycache__/
+*.pyc
+
 # macOS
 .DS_Store
 **/.DS_Store

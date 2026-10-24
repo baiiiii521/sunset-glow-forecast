@@ -1,14 +1,24 @@
-# 霞（GLOW）定时任务 —— 两台机器各贴各的一段
-# 注意：cron 用主机本地时间。站点机 UTC+7，算力机 UTC+8。
-# 要严格按北京时间，可在文件顶部加：CRON_TZ=Asia/Shanghai
-
-# ========== 站点机（站点根目录 /var/www/glow，UTC+7）==========
-# 15:00 轻量刷新：只重算在榜城市，不改 computedAt、不动参评池
-0 15 * * *  cd /var/www/glow && /usr/bin/node scripts/build-rankings-v3.js --refresh 15 --out data/rankings.json >> logs/rankings.log 2>&1 && /usr/bin/node scripts/test-rankings-schema.js data/rankings.json >> logs/rankings.log 2>&1
-
-# 每小时 :07 快照（20 城，首屏秒开 + 429 兜底）
-7 * * * *   cd /var/www/glow && /usr/bin/node scripts/build-snapshots.js 20 >> logs/snapshots.log 2>&1
+# 霞（GLOW）定时任务 —— 2026-10-25 修订，与 docs/HANDOFF.md §3.4、README §七/§八 一致
+# 分工原则：所有 Open-Meteo 取数都在算力机（额度独立）；站点机 IP 跑取数会被限流
+# （2026-10-24 实测「轻量刷新全部失败」），站点机只发静态文件 + /om/ 反向代理。
+# 三个任务共用同一把锁 /tmp/glow-om.lock（串行，防全量跑得慢与刷新/快照重叠丢更新）；
+# 全量不等待（-n，撞上就跳过这一轮），刷新/快照最多排队 10 分钟（-w 600）。
+# 注意：cron 用主机本地时间（算力机 UTC+8）。node 路径与仓库目录以 OPS.local.md / 服务器实际为准；
+# daily.sh 内容不在仓库，以下为模板，所有者核对后再贴。
 
 # ========== 算力机（~/glow，UTC+8，Open-Meteo 额度独立）==========
-# 04:00 全量：30 个世界大城市 + 500 个中国城市，跑完跑契约测试并推给站点机
-0 4 * * *   /home/ubuntu/glow/daily.sh
+# 04:00 全量霞榜：30 世界精选 + 500 中国（build 写盘前自带契约校验，违约不落盘、退出码 3）
+0 4 * * *   flock -n /tmp/glow-om.lock /home/ubuntu/glow/daily.sh
+
+# 15:00 轻量刷新：只重算在榜前 15 名（约 15×11 次调用），未刷新条目标 stale
+0 15 * * *  flock -w 600 /tmp/glow-om.lock sh -c 'cd /home/ubuntu/glow && /opt/node22/bin/node scripts/build-rankings-v3.js --refresh 15 --out data/rankings.json >> logs/rankings.log 2>&1 && /opt/node22/bin/node scripts/test-rankings-schema.js data/rankings.json >> logs/rankings.log 2>&1'
+
+# 每小时 :07 快照（20 城，首屏秒开 + 429 兜底）
+7 * * * *   flock -w 600 /tmp/glow-om.lock sh -c 'cd /home/ubuntu/glow && /opt/node22/bin/node scripts/build-snapshots.js 20 >> logs/snapshots.log 2>&1'
+
+# 跑完推送站点机：scp 到 *.tmp 再 ssh mv 原子替换（或 rsync --delay-updates），
+# 保证前端在两个 JSON 先后到达的窗口里读不到半份。具体命令见 OPS.local.md。
+
+# ========== 站点机（/var/www/glow，UTC+7）==========
+# 2026-10-24 起站点机不跑任何 Open-Meteo 取数任务。
+# 仅保留 nginx：静态文件 + /om/ 缓存反向代理（配置见 deploy/nginx-glow-cache.conf）。

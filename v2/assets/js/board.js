@@ -118,7 +118,7 @@
     return list.map(function (c, i) {
       var lv = c.level != null ? c.level : G.band(c.score);
       var t = '';
-      try { t = G.fmtTime(c.epoch, c.offsetSec); } catch (e) {}
+      try { t = G.fmtTime(c.epoch, c.offsetSec, c.tzName); } catch (e) {}
       var dm = c.day === 'tomorrow' ? '<i class="dm">明日</i>' : '';
       return '<a class="brow" href="' + cityHref(c.city) + '">' +
         '<span class="rk">' + G.pad(i + 1) + '</span>' +

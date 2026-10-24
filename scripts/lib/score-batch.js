@@ -130,13 +130,20 @@ async function scoreCities(cities, opts = {}) {
           if (!f) throw new Error('no forecast');
           const ev = nextSunset(f, m.city);
           if (!ev) throw new Error('no sunset');
+          // 上游点保留 null 占位：下标与 UP 距离表对齐（原来漏掉缺数据点后，
+          // 后面所有点的距离权重会整体错一位）
+          const align = A.FLAGS && A.FLAGS.windowAlign;
           const ups = [];
           for (let k = 1; k < COORDS_PER_CITY; k++) {
             const u = fc[m.base + k];
-            if (u && u.hourly) ups.push({ hourly: u.hourly, utc_offset_seconds: u.utc_offset_seconds || ev.offset });
+            if (!(u && u.hourly)) { ups.push(null); continue; }
+            const uOff = u.utc_offset_seconds || ev.offset;
+            ups.push({ hourly: align ? A.blendCloudAt(u.hourly, ev.epoch, uOff) : u.hourly, utc_offset_seconds: uOff });
           }
-          const ov = null;   // 粗筛不用 15 分钟窗口（精算阶段才用）
-          const res = A.evaluate(f, a, ups, ev.epoch, m.bearing, ev.offset, ov, UP);
+          // 粗筛不用 15 分钟窗口（精算阶段才用）；对齐口径下本地云量同样插值，粗筛/精算同口径
+          const localF = align ? Object.assign({}, f, { hourly: A.blendCloudAt(f.hourly, ev.epoch, ev.offset) }) : f;
+          const ov = null;
+          const res = A.evaluate(localF, a, ups, ev.epoch, m.bearing, ev.offset, ov, UP);
           results.push({
             city: m.city, score: res.score, grade: res.grade, level: res.level,
             conf: res.conf, clarity: res.clarity || null, inputs: res.inputs,

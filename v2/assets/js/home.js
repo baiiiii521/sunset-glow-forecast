@@ -26,13 +26,14 @@
     var sunrise = ev.type === 'sunrise';
     var level = ev.level != null ? ev.level : G.band(ev.score);
     var offset = d.offsetSec;
+    var tz = d.tzName || null;   // 展示按真实时区换算（跨夏令时的标签才不会差 1 小时）
 
     $('#heroWord').textContent = ev.day === 'tomorrow' ? (sunrise ? '明早' : '明晚') : (sunrise ? '今早' : '今晚');
     $('#placeLine').innerHTML = '<span>' + esc(state.place.name) + '</span>' +
-      '<em>' + G.fmtDate(ev.epoch, offset) + '</em>' +
+      '<em>' + G.fmtDate(ev.epoch, offset, tz) + '</em>' +
       '<em>' + Math.abs(state.place.lat).toFixed(2) + '°' + (state.place.lat >= 0 ? 'N' : 'S') + ' ' +
       Math.abs(state.place.lon).toFixed(2) + '°' + (state.place.lon >= 0 ? 'E' : 'W') + '</em>' +
-      '<em>更新于 ' + G.fmtTime(d.fetchedAt, offset) + '</em>';
+      '<em>更新于 ' + G.fmtTime(d.fetchedAt, offset, tz) + '</em>';
 
     var sc = $('#heroScore');
     sc.textContent = ev.score;
@@ -45,11 +46,11 @@
     bar.style.boxShadow = level >= 4 ? '0 0 12px rgba(255,90,31,.45)' : 'none';
 
     $('#heroVerdict').firstChild.textContent = G.SENT[level] + ' ';
-    $('#heroWhy').textContent = (ev.reasons && ev.reasons[0]) || '';
+    $('#heroWhy').textContent = (ev.reasonsV2 && ev.reasonsV2[0]) || (ev.reasons && ev.reasons[0]) || '';
 
-    var win = API.viewingWindow ? API.viewingWindow(ev.epoch, !sunrise, offset).replace('约 ', '') : '';
+    var win = API.viewingWindow ? API.viewingWindow(ev.epoch, !sunrise, offset, tz).replace('约 ', '') : '';
     $('#heroWindow').textContent = win || '—';
-    $('#heroSunset').textContent = G.fmtTime(ev.epoch, offset);
+    $('#heroSunset').textContent = G.fmtTime(ev.epoch, offset, tz);
     var sunLab = document.getElementById('heroSunLabel');
     if (sunLab) sunLab.textContent = sunrise ? '日出' : '日落';
     $('#heroBearing').textContent = Math.round(ev.bearing || 0) + '°';
@@ -75,7 +76,7 @@
     if (fm) {
       fm.innerHTML = [
         ['窗口', win || '—'],
-        [sunrise ? '日出' : '日落', G.fmtTime(ev.epoch, offset)],
+        [sunrise ? '日出' : '日落', G.fmtTime(ev.epoch, offset, tz)],
         ['方位', Math.round(ev.bearing || 0) + '°'],
         ['通透', String(clarity.score)]
       ].map(function (r) {
@@ -89,6 +90,7 @@
   }
 
   function renderSunPath(ev, sunrise, offset) {
+    var tz = (state.data && state.data.tzName) || null;
     var pts = [
       { e: 6, label: '+6° 金色' },
       { e: 0, label: sunrise ? '0° 日出' : '0° 日落' },
@@ -103,9 +105,9 @@
     var nowRow = rows.find(function (r) { return r.now; });
     $('#sunPath').innerHTML = rows.map(function (r) {
       return '<div class="rail-row' + (r === nowRow ? ' now' : '') + '"><span>' + r.label +
-        '</span><span>' + G.fmtTime(r.t, offset) + '</span></div>';
+        '</span><span>' + G.fmtTime(r.t, offset, tz) + '</span></div>';
     }).join('');
-    $('#railSunset').textContent = (sunrise ? 'SUNRISE ' : 'SUNSET ') + G.fmtTime(ev.epoch, offset);
+    $('#railSunset').textContent = (sunrise ? 'SUNRISE ' : 'SUNSET ') + G.fmtTime(ev.epoch, offset, tz);
   }
 
   function solveElev(center, target) {
@@ -146,10 +148,10 @@
       var past = ev.epoch < Date.now() - 15 * 60000;
       return '<button class="ev' + (i === state.idx ? ' on' : '') + '" role="tab" aria-selected="' + (i === state.idx) + '" data-i="' + i + '">' +
         '<span class="ev-top"><span>' + String(i + 1).padStart(2, '0') + (past ? ' · 已过' : '') + ' ' + day + '</span>' +
-        '<span>' + G.fmtTime(ev.epoch, d.offsetSec) + '</span></span>' +
+        '<span>' + G.fmtTime(ev.epoch, d.offsetSec, d.tzName) + '</span></span>' +
         '<div class="ev-score g' + level + '">' + ev.score + '</div>' +
         '<div class="bar" style="margin-top:14px"><i style="width:' + ev.score + '%;background:' + gradeColor(level) + '"></i></div>' +
-        '<div class="ev-why">' + ((ev.reasons && ev.reasons[0]) || ev.grade) + '</div>' +
+        '<div class="ev-why">' + ((ev.reasonsV2 && ev.reasonsV2[0]) || (ev.reasons && ev.reasons[0]) || ev.grade) + '</div>' +
         '<div class="ev-grade">' + (G.GRADE[level] || ev.grade) + '</div>' +
         '</button>';
     }).join('');
@@ -164,10 +166,12 @@
   function renderGates() {
     var ev = state.data.events[state.idx];
     var c = ev.comps || {};
-    var pick = function (k) { return (c[k] && c[k][0] != null) ? Math.round(c[k][0]) : null; };
+    var pick = function (k) { return (c[k] && c[k][0] != null) ? c[k][0] : null; };
+    // 缺口跟随算法开关；gapV3 缺数据时回落 gapV2（与 glow() 同规则）
+    var gapVal = (A.FLAGS.gapV3 && pick('gapV3') != null) ? pick('gapV3') : pick('gapV2');
     var rows = [
       ['幕布', pick('curtainV2')],
-      ['缺口', pick('gapV2')],
+      ['缺口', gapVal],
       ['低云', pick('low')]
     ];
     $('#gates').innerHTML = rows.map(function (r) {
@@ -202,14 +206,14 @@
     for (var m = -TL_SPAN; m <= TL_SPAN; m += 60) {
       if (m === 0) continue;
       var p = (m + TL_SPAN) / (2 * TL_SPAN) * 100;
-      ticks += '<span style="left:' + Math.min(96, Math.max(4, p)) + '%">' + G.fmtTime(ev.epoch + m * 60000, state.data.offsetSec) + '</span>';
+      ticks += '<span style="left:' + Math.min(96, Math.max(4, p)) + '%">' + G.fmtTime(ev.epoch + m * 60000, state.data.offsetSec, state.data.tzName) + '</span>';
     }
     $('#tlTicks').innerHTML = ticks;
 
     setTL(state.tl.t || 0);
     var rise = ev.type === 'sunrise';
     $('#tlTitle').innerHTML = rise ? '拖着时间走，<br>看天一点点亮起来' : '拖着时间走，<br>看天一点点暗下去';
-    $('#tlCaption').textContent = '以 ' + (rise ? '日出' : '日落') + ' ' + G.fmtTime(ev.epoch, state.data.offsetSec) + ' 为轴心，前后两个半小时。';
+    $('#tlCaption').textContent = '以 ' + (rise ? '日出' : '日落') + ' ' + G.fmtTime(ev.epoch, state.data.offsetSec, state.data.tzName) + ' 为轴心，前后两个半小时。';
   }
 
   function setTL(t) {
@@ -217,20 +221,21 @@
     t = Math.max(-TL_SPAN, Math.min(TL_SPAN, t));
     state.tl.t = t;
     var ev = state.data.events[state.idx], offset = state.data.offsetSec;
+    var tz = state.data.tzName || null;
     var epoch = ev.epoch + t * 60000;
     var e = G.solarElev(state.place.lat, state.place.lon, epoch);
     var pct = Math.round(Math.max(0, Math.min(1, Math.exp(-Math.pow((e + 2) / 6.5, 2)))) * ev.score);
 
-    $('#tlClock').textContent = G.fmtTime(epoch, offset);
+    $('#tlClock').textContent = G.fmtTime(epoch, offset, tz);
     $('#tlElev').textContent = (e >= 0 ? '+' : '') + e.toFixed(1) + '°';
     $('#tlPct').textContent = pct + ' / 100';
     var phase = e > 6 ? ['白昼', 'DAY'] : e > -1 ? ['金色时刻', 'GOLD'] : e > -6 ? ['火烧云', 'FIRE'] : e > -12 ? ['蓝调时刻', 'BLUE'] : ['夜', 'NIGHT'];
     $('#tlPhase').textContent = phase[0];
     $('#tlPhaseEn').textContent = phase[1];
     $('#tlHead').style.left = ((t + TL_SPAN) / (2 * TL_SPAN) * 100) + '%';
-    $('#tlHeadLabel').textContent = G.fmtTime(epoch, offset);
+    $('#tlHeadLabel').textContent = G.fmtTime(epoch, offset, tz);
     $('#tlTrack').setAttribute('aria-valuenow', Math.round(t));
-    $('#tlTrack').setAttribute('aria-valuetext', G.fmtTime(epoch, offset) + '，太阳高度 ' + e.toFixed(1) + ' 度');
+    $('#tlTrack').setAttribute('aria-valuetext', G.fmtTime(epoch, offset, tz) + '，太阳高度 ' + e.toFixed(1) + ' 度');
     var top = e > 0 ? '#2A1A55' : e > -6 ? '#7A1A58' : e > -12 ? '#241441' : '#0E0B22';
     $('#tlSky').style.background = 'radial-gradient(120% 80% at 56% 100%, ' +
       (e > -1 ? '#FF5A1F' : e > -6 ? '#8A3A6E' : '#3A1B58') + ' 0%, ' + top + ' 60%, #06050E 100%)';
@@ -271,7 +276,10 @@
   }
 
   /* ---------------- 剖面 ---------------- */
-  // 11 项与算法 WEIGHTS 一一对应，数值直接取 ev.comps（不再自行拼公式）
+  // 分项与算法的实际参与项一一对应（数值直接取 ev.comps，不自行拼公式）：
+  // 降水/雨洗是 v2 口径（覆盖事件那一格的降水、对齐后的霞前 3 小时窗口）；
+  // 缺口跟随算法 FLAGS（gapV3 打开后展示光路几何口径的分数）
+  var GAP_KEY = (A.FLAGS && A.FLAGS.gapV3) ? 'gapV3' : 'gapV2';
   var ZONES = [
     { z: '8–12 km', rows: [
       { nm: '幕布（中+高云受光）', en: 'CURTAIN', w: '×0.5', k: 'curtainV2' }
@@ -280,11 +288,11 @@
       { nm: '低云遮挡', en: 'STRATOCU', w: '×0.2', k: 'low' }
     ]},
     { z: '上游 50–400 km', rows: [
-      { nm: '晴空缺口', en: 'UPSTREAM', w: '×0.3', k: 'gapV2' }
+      { nm: '晴空缺口', en: 'UPSTREAM', w: '×0.3', k: GAP_KEY }
     ]},
     { z: '地面', rows: [
-      { nm: '降水', w: '×10', k: 'precip' },
-      { nm: '雨洗（前 3 小时）', w: '×10', k: 'washed' },
+      { nm: '降水（事件那一小时）', w: '×10', k: 'precipV2' },
+      { nm: '雨洗（霞前 3 小时）', w: '+0–5', k: 'washedV2' },
       { nm: '气溶胶 AOD', w: '×5', k: 'aod' },
       { nm: '能见度', w: '×3', k: 'vis' },
       { nm: 'PM2.5', w: '×3', k: 'pm' },
@@ -300,6 +308,8 @@
       var first = true;
       z.rows.forEach(function (r) {
         var cell = comps[r.k];
+        // 缺口行跟随算法开关；gapV3 缺数据时回落 gapV2 展示（与 glow() 同规则）
+        if (r.k === 'gapV3' && (!cell || cell[0] == null) && comps.gapV2) cell = comps.gapV2;
         var v = cell ? cell[0] : null;
         var note = cell ? cell[1] : '';
         var gate = r.w === '×0.5' || r.w === '×0.3' || r.w === '×0.2';
@@ -399,7 +409,7 @@
       $('#bList').innerHTML = list.map(function (c, i) {
         var lv = c.level != null ? c.level : G.band(c.score);
         var t = '';
-        try { t = G.fmtTime(c.epoch, c.offsetSec || 0); } catch (e) {}
+        try { t = G.fmtTime(c.epoch, c.offsetSec || 0, c.tzName); } catch (e) {}
         return '<a class="trow" href="city.html?c=' + encodeURIComponent(c.city.name) + '&lat=' + c.city.lat + '&lon=' + c.city.lon + '">' +
           '<span class="rk">' + G.pad(i + 1) + '</span>' +
           '<span class="ct">' + c.city.name + '</span>' +
@@ -614,8 +624,8 @@
         $('#heroVerdict').firstChild.textContent = '接口不可用，这是 ' + G.stamp(snap.computedAt) + ' 的快照。 ';
         $('#heroWhy').textContent = '';
         $('#heroWindow').textContent = '—';
-        $('#heroSunset').textContent = G.fmtTime(r.epoch, r.offsetSec);
-        $('#heroBearing').textContent = Math.round(r.bearing || 0) + '°';
+        $('#heroSunset').textContent = G.fmtTime(r.epoch, r.offsetSec, r.tzName);
+        $('#heroBearing').textContent = (r.bearing != null) ? Math.round(r.bearing) + '°' : '—';
         G.setSky(lv, r.day === 'sunrise', true);
       });
     });
