@@ -166,8 +166,13 @@ function counts(list) {
   );
   const chinaPool = dedupe(
     API.CHINA_CITIES
-      .concat(world.filter((c) => c.cc === 'CN').slice(0, N_CHINA).map((c) => ({ name: c.zh || zhNear(c.lat, c.lon) || c.en, country: '中国', lat: c.lat, lon: c.lon })))
-  );
+      .concat(world.filter((c) => c.cc === 'CN').slice(0, N_CHINA).map((c) => ({ name: c.zh || c.en, country: '中国', lat: c.lat, lon: c.lon })))
+  ).map((c) => {
+    // 中国榜必须是中文名：没有中日韩字符的，用最近的中国行政区名替换
+    if (/[\u4e00-\u9fa5]/.test(c.name)) return c;
+    const zh = zhNear(c.lat, c.lon);
+    return zh ? { ...c, name: zh } : c;
+  });
 
   console.error(`${new Date().toISOString()} 城市池：全球 ${globalPool.length} / 中国 ${chinaPool.length}`);
 
