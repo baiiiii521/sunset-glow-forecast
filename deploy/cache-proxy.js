@@ -33,11 +33,32 @@ function upstreamFor(url) {
   return null;
 }
 
-async function fetchUpstream(target) {
-  const url = 'https://' + target.host + target.path + target.rest;
+// 备用出口（可选）：直连被限流（429）/5xx/网络故障时，把请求原样转发到这里重试一次
+// （如 http://127.0.0.1:8791，经 ssh 隧道到华为云 relay —— 换出口 IP，额度独立重计）。
+// relay 自身不要设这个变量，避免转发成环。
+const RELAY = process.env.GLOW_RELAY_URL || '';
+
+async function fetchOnce(url) {
   const res = await fetch(url, { headers: { 'User-Agent': 'glow-cache-proxy/1.0' } });
   const body = await res.text();
   return { status: res.status, body, type: res.headers.get('content-type') || 'application/json' };
+}
+
+async function fetchUpstream(target, reqUrl) {
+  let out;
+  try {
+    out = await fetchOnce('https://' + target.host + target.path + target.rest);
+  } catch (e) {
+    if (!RELAY) throw e;
+    return fetchOnce(RELAY + reqUrl);
+  }
+  if ((out.status === 429 || out.status >= 500) && RELAY) {
+    try {
+      const viaRelay = await fetchOnce(RELAY + reqUrl);
+      if (viaRelay.status < out.status) out = viaRelay;
+    } catch (_) { /* 备用出口不可达：按直连结果走 STALE 逻辑 */ }
+  }
+  return out;
 }
 
 function trim() {
@@ -71,7 +92,7 @@ const server = http.createServer(async (req, res) => {
   try {
     let p = inflight.get(key);
     if (!p) {
-      p = fetchUpstream(target).finally(() => inflight.delete(key));
+      p = fetchUpstream(target, url).finally(() => inflight.delete(key));
       inflight.set(key, p);
     }
     const out = await p;

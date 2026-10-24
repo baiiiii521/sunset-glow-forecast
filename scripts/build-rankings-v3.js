@@ -117,10 +117,24 @@ function counts(list) {
   // 预检额度：Open-Meteo 免费层按天/小时限流，额度用光时整轮会全是 429。
   // 先打一发探针，早失败比跑一小时才发现好。
   try {
-    const probe = await fetch('https://api.open-meteo.com/v1/forecast?latitude=21.27&longitude=110.36&hourly=cloud_cover&forecast_days=1');
+    const probeURL = 'https://api.open-meteo.com/v1/forecast?latitude=21.27&longitude=110.36&hourly=cloud_cover&forecast_days=1';
+    const probe = await fetch(probeURL);
     if (probe.status === 429) {
-      console.error(`${new Date().toISOString()} 额度已用尽（429），本轮跳过，保留旧榜单不动`);
-      process.exit(2);
+      // 本机额度用尽：若配了备用出口（GLOW_OM_BASE，如华为云 relay 隧道），先探它，
+      // 通了就继续跑（api.js 的 fetchJSON 会在直连 429 时自动切到备用出口）。
+      const relay = process.env.GLOW_OM_BASE;
+      let viaRelay = false;
+      if (relay) {
+        try {
+          viaRelay = (await fetch(relay + '/v1/forecast?latitude=21.27&longitude=110.36&hourly=cloud_cover&forecast_days=1')).status === 200;
+        } catch (_) { /* 备用出口不可达，视为没配 */ }
+      }
+      if (viaRelay) {
+        console.error(`${new Date().toISOString()} 本机额度已用尽（429），自动切换备用出口 ${relay} 继续本轮`);
+      } else {
+        console.error(`${new Date().toISOString()} 额度已用尽（429）且无可用备用出口，本轮跳过，保留旧榜单不动`);
+        process.exit(2);
+      }
     }
   } catch (e) {
     console.error(`${new Date().toISOString()} 预检请求失败：${e.message}，继续尝试`);
