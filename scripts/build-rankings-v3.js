@@ -3,7 +3,7 @@
  * 霞榜 v3：先把城市池扩到上千座粗筛，再对头部跑完整集合算法取前十。
  *
  * 两段式：
- *   1) 粗筛 scoreCities()：一次请求 8 城 × 6 坐标（本点 + 上游 5 点），单模式
+ *   1) 粗筛 scoreCities()：一次请求 6 城 × 4 坐标（本点 + 3 个上游点）（本点 + 上游 5 点），单模式
  *   2) 精算 API.evaluateNextSunset()：4 模式集合 + 上游 + 15 分钟窗口，与网页同口径
  *
  * 用法：
@@ -43,13 +43,12 @@ function normName(n) {
   return String(n || '').replace(/[市区县镇]$/, '').trim();
 }
 function dedupe(list) {
-  const seen = new Set();
-  return list.filter((c) => {
-    const k = normName(c.name) + '|' + Number(c.lat).toFixed(1);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const kept = [];
+  for (const c of list) {
+    const dup = kept.find((k) => normName(k.name) === normName(c.name) && haversine(k, c) < 20);
+    if (!dup) kept.push(c);
+  }
+  return kept;
 }
 
 // 人口表（用于识别卫星城）：名字归一化后取最大人口
@@ -123,7 +122,7 @@ function counts(list) {
     const out = {
       ...cur,
       refreshedAt: Date.now(),   // 不动 computedAt：避免把旧分数伪装成新榜单
-      stats: { global: { counts: counts(apply(cur.global || [])) }, china: { counts: counts(apply(cur.china || [])) } },
+      stats: cur.stats || { global: { counts: [] }, china: { counts: [] } },   // 参评池没变，分布沿用上一次全量
       global: apply(cur.global || []).sort((a, b) => b.score - a.score),
       china: apply(cur.china || []).sort((a, b) => b.score - a.score)
     };

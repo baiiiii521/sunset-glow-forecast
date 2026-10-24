@@ -6,11 +6,11 @@
 <title>霞 · 今晚有没有火烧云</title>
 <meta name="description" content="把今晚的天空算成一个分数、一个时间窗、一个方位。">
 <meta name="theme-color" content="#06050E">
-<link rel="stylesheet" href="assets/css/fonts.css?v=20261024a">
-<link rel="stylesheet" href="assets/css/tokens.css?v=20261024a">
-<link rel="stylesheet" href="assets/css/base.css?v=20261024a">
-<link rel="stylesheet" href="assets/css/p01.css?v=20261024a">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261024a" media="(max-width:767px)">
+<link rel="stylesheet" href="assets/css/fonts.css?v=57a27745">
+<link rel="stylesheet" href="assets/css/tokens.css?v=55d12b46">
+<link rel="stylesheet" href="assets/css/base.css?v=cb64a437">
+<link rel="stylesheet" href="assets/css/p01.css?v=8472c5b7">
+<link rel="stylesheet" href="assets/css/mobile.css?v=f6f0c4cd" media="(max-width:767px)">
 </head>
 <body>
 <a class="skip" href="#main">跳到正文</a>
@@ -108,7 +108,7 @@
     <div class="hero-facts-m" id="heroFactsM"></div>
 
     <div class="hero-foot">
-      <span class="lab">4 模式 · 51 成员 · 11 项因素</span>
+      <span class="lab">4 个数值模式 · 11 项因素</span>
       <span class="lab">OPEN-METEO · CAMS</span>
       <span class="lab">纯静态 · 查询在浏览器发出</span>
     </div>
@@ -226,7 +226,7 @@
       <div>
         <div class="lab">05 — BOARD / 霞榜</div>
         <h2 class="big" id="bdTitle">今天傍晚，<br>世界上哪些城市<br><em>最可能烧</em>起来？</h2>
-        <p class="body" style="margin-top:20px;max-width:400px">同一套算法、同一时刻，各自按本地日落计算。榜单每天 15:00 预计算一次。</p>
+        <p class="body" style="margin-top:20px;max-width:400px">同一套算法、同一时刻，各自按本地日落计算。榜单每天 04:00 全量重算，15:00 轻量刷新。</p>
         <a class="btn btn-ghost" href="board.html" style="margin-top:26px">进入完整霞榜
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
         </a>
@@ -275,7 +275,7 @@
         <p class="small" style="max-width:560px">云量同时取四个数值模式（综合 ×3 / ECMWF / GFS / ICON），各算一遍再加权平均；同一套算法也用于霞榜与每日推送。</p>
         <div class="row gap48">
           <div><div class="lab">数值模式</div><div class="num" style="font-size:22px;margin-top:6px">4</div></div>
-          <div><div class="lab">更新</div><div class="num" style="font-size:22px;margin-top:6px">每小时</div></div>
+          <div><div class="lab">更新</div><div class="num" style="font-size:22px;margin-top:6px">每日 04:00</div></div>
           <div><div class="lab">归因</div><div class="num" style="font-size:22px;margin-top:6px">11 项</div></div>
         </div>
       </div>
@@ -343,10 +343,10 @@
 
 <!-- 走自有 nginx 缓存代理（deploy/README.md）；直连可改回空串 -->
 <script>window.GLOW_OM_BASE = "/om";</script>
-<script src="../algo.js?v=20261024a"></script>
-<script src="../api.js?v=20261024a"></script>
-<script src="assets/js/glow.js?v=20261024a"></script>
-<script src="assets/js/forecast.js?v=20261024a"></script>
-<script src="assets/js/home.js?v=20261024a"></script>
+<script src="../algo.js?v=f44d43ac"></script>
+<script src="../api.js?v=b6e1ab62"></script>
+<script src="assets/js/glow.js?v=82c021bf"></script>
+<script src="assets/js/forecast.js?v=ea46b748"></script>
+<script src="assets/js/home.js?v=5b16b3b9"></script>
 </body>
 </html>

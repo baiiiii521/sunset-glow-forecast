@@ -1,0 +1,19 @@
+用途：1200×630 分享卡底图（城市名与分数由 Canvas 叠在上面）
+页面 / 模块：分享浮层 / OG image
+主体内容：一张横向电影感天空，右侧 2/3 有被点亮的层积云，左侧 1/3 近乎纯暗紫（放城市名与分数）
+构图：地平线在画面 85% 高度，无陆地、无建筑；左侧留出至少 40% 的干净暗区
+摄影视角：广角天空仰拍转平视，水平构图
+光照方向：夕阳在地平线下方约 -2°，自右下方打亮云底
+天空与氛围：暮色将尽，云层有体积，颗粒细腻
+色彩体系：ember #FF5A1F、gold #FFC36B、深紫 #1B1140；整体压暗 15%，保证白字可读
+风格：电影感 35mm，自然曝光，不要 HDR
+比例 / 分辨率：16:9（将裁为 1.91:1）
+透明背景：不需要
+主体预留空间：左侧 40% 必须干净，用于叠加「城市名 + 68/100 + 一句话」
+需要避免：文字 / 界面 / 水印 / 月星 / 建筑 / 人物
+
+---
+
+## PROMPT (EN) — 直接喂给 codex-image
+
+Cinematic 35mm photograph of a wide sunset sky for a share card, 16:9. Left 40% is calm, very dark deep violet with almost no texture (clean copy space). Right 60% has layered stratocumulus and altocumulus lit from below in ember orange and gold, sun just below the horizon on the right, soft glow. No land, no buildings, no water, no moon, no stars, no text, no interface, no watermark. Natural exposure, subtle film grain, slightly desaturated, premium editorial mood, no HDR. Horizon low at 85% height.

@@ -1,0 +1,21 @@
+用途：朝霞 · 档位 L0（无烧，演示分 12）的首屏天幕底图
+页面 / 模块：P01-02 Hero / P02-01 城市页头 / 分享卡（日出场）
+主体内容：厚低云、平灰蓝、零暖色；云层压实、天光死板；朝霞偏冷、偏淡，晨雾感，不要日落式的浓烈橙红
+构图：地平线压在画面 80% 高度（只有一条极窄的地平线亮带），天空占 80%，无前中景
+摄影视角：地面视平线，广角 24–35mm 等效，水平构图，无畸变
+光照方向：光源在右下低空，太阳位于地平线下方 -8°
+天空与氛围：flat dull grey-blue overcast, thick low stratus deck, no warm colour at all, heavy lifeless light；清晨空气更清透，带一层薄雾
+色彩体系：冷灰蓝 / 石板灰，饱和度极低
+风格：电影感 35mm 胶片，自然曝光，细颗粒，轻微降饱和；不要 HDR / 不要霓虹
+比例 / 分辨率：16:9（16:9 landscape），最大输出约 1672×941
+透明背景：不需要（满幅实景）
+主体预留空间：左侧 1/3 保持更暗、更平、无强纹理，用于叠加大标题与分数
+需要避免：文字 / 界面 / 水印 / 月亮 / 星星 / 陆地 / 水面 / 人物 / 过度锐化 / 云纹重复
+
+特别强调（返工点）：这是「无烧」朝霞，**绝对不能有任何暖色**。不要 sunrise glow、不要 pink、不要 gold。如果画面出现橙红即为错误。
+
+---
+
+## PROMPT (EN) — 直接喂给 codex-image
+
+Photograph of the sky before sunrise in blue hour, completely overcast, grade 0. NO sun, NO sunrise glow, NO warm colour at all: no orange, no pink, no red, no ember, no gold. Uniform cold blue-grey stratus deck, flat lifeless light, thin morning fog, desaturated monochrome blue-grey palette. Pure sky, no land, no water, no moon, no stars, no text, no UI. Horizon low at 80%, left third slightly darker. Natural exposure, fine grain, no HDR. 16:9.

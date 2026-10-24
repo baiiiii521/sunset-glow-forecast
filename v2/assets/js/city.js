@@ -22,7 +22,7 @@
     $('#cityMeta').innerHTML = '<span>' + Math.abs(place.lat).toFixed(2) + '°' + (place.lat >= 0 ? 'N' : 'S') + ' ' +
       Math.abs(place.lon).toFixed(2) + '°' + (place.lon >= 0 ? 'E' : 'W') + '</span>' +
       '<span>' + (state.week ? state.week.tzName : '') + '</span>' +
-      '<span id="updAt">—</span>';
+      '<span id="updAt">' + (state.updAt || '—') + '</span>';
     document.title = place.name + ' · 七天霞预报';
   }
 
@@ -211,7 +211,9 @@
     G.snapshotFor(place.name, place.lat).then(function (snap) {
       if (!snap || state.data) return;
       var r = snap.row, lv = r.level != null ? r.level : G.band(r.score);
-      $('#tdCap').textContent = '快照 ' + G.stamp(snap.computedAt) + ' · 正在获取实时数据…';
+      var ageH = (Date.now() - snap.computedAt) / 3600e3;
+      var stampTxt = G.stamp(snap.computedAt) + (ageH > 24 ? '（' + Math.round(ageH) + ' 小时前，可能已过期）' : '');
+      $('#tdCap').textContent = '快照 ' + stampTxt + ' · 单模式粗算 · 正在获取实时数据…';
       $('#todayRow').innerHTML =
         '<div class="tcard big" style="--c:' + gradeColor(lv) + '">' +
           '<div class="lab">快照 · ' + (r.day === 'today' ? '今天' : '明天') + '</div>' +
@@ -229,14 +231,17 @@
     paintFromSnapshot();
     API.evaluatePlace(place.lat, place.lon).then(function (d) {
       state.data = d; renderToday(); renderBoardBadge(d.fetchedAt, d.offsetSec);
-      var el = document.getElementById('updAt'); if (el) el.textContent = '更新 ' + G.fmtTime(d.fetchedAt, d.offsetSec);
+      state.updAt = '更新 ' + G.fmtTime(d.fetchedAt, d.offsetSec);
+      var el = document.getElementById('updAt'); if (el) el.textContent = state.updAt;
     }).catch(function (e) {
       console.error(e);
       G.notice('接口限流或超时，先显示每小时快照，完整明细稍后重试', 'warn');
       G.snapshotFor(place.name, place.lat).then(function (snap) {
         if (!snap) { $('#tdCap').textContent = '取数失败，请稍后重试'; return; }
         var r = snap.row, lv = r.level != null ? r.level : G.band(r.score);
-        $('#tdCap').textContent = '接口不可用 · 快照 ' + G.stamp(snap.computedAt);
+        var ageH2 = (Date.now() - snap.computedAt) / 3600e3;
+        $('#tdCap').textContent = '接口不可用 · 快照 ' + G.stamp(snap.computedAt) +
+          (ageH2 > 24 ? '（' + Math.round(ageH2) + ' 小时前，可能已过期）' : '') + ' · 单模式粗算';
         $('#todayRow').innerHTML = '<div class="tcard big" style="--c:' + gradeColor(lv) + '">' +
           '<div class="lab">快照 · ' + (r.day === 'today' ? '今天' : '明天') + '</div>' +
           '<div class="tscore">' + r.score + '<span>/100</span></div>' +

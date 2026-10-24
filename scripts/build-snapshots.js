@@ -35,7 +35,7 @@ function fromRankings() {
   const cities = {};
   all.forEach((r) => {
     if (!r || !r.city) return;
-    cities[r.city.name + '|' + Number(r.city.lat).toFixed(2)] = {
+    cities[r.city.name + '|' + Number(r.city.lat).toFixed(2) + '|' + Number(r.city.lon).toFixed(2)] = {
       score: r.score, grade: r.grade, level: r.level, conf: r.conf,
       clarity: r.clarity || null, epoch: r.epoch, offsetSec: r.offsetSec,
       tzName: r.tzName, bearing: null, day: r.day
@@ -62,7 +62,7 @@ function fromRankings() {
 
   const cities = {};
   ok.forEach((r) => {
-    cities[r.city.name + '|' + Number(r.city.lat).toFixed(2)] = {
+    cities[r.city.name + '|' + Number(r.city.lat).toFixed(2) + '|' + Number(r.city.lon).toFixed(2)] = {
       score: r.score, grade: r.grade, level: r.level, conf: r.conf,
       clarity: r.clarity || null, epoch: r.epoch, offsetSec: r.offsetSec,
       tzName: r.tzName, bearing: r.bearing, day: r.day

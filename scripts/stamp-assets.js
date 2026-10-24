@@ -26,6 +26,40 @@ for (const name of ASSETS) {
   out = out.replace(re, '$1' + name + '?v=' + hash + '$2');
 }
 
+
+/* ---------------- v2 三页：本地 css/js + 共享 ../algo.js ../api.js ---------------- */
+function stampV2() {
+  const pages = ['v2/index.html', 'v2/city.html', 'v2/board.html'];
+  let dirty = [];
+  for (const page of pages) {
+    const abs = path.join(ROOT, page);
+    const html = fs.readFileSync(abs, 'utf-8');
+    let out = html;
+    const refs = html.match(/(?:href|src)="(?:assets\/(?:css|js)\/[^"]+|\.\.\/(?:algo|api)\.js)(?:\?v=[0-9a-f]+)?"/g) || [];
+    for (const ref of refs) {
+      const m = ref.match(/(?:href|src)="([^"?]+)(?:\?v=[0-9a-f]+)?"/);
+      if (!m) continue;
+      const rel = m[1];
+      const file = path.join(ROOT, page, '..', rel);     // 相对该页面解析
+      if (!fs.existsSync(file)) continue;
+      const hash = crypto.createHash('md5').update(fs.readFileSync(file)).digest('hex').slice(0, 8);
+      const re = new RegExp('((?:href|src)="' + rel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?:\\?v=[0-9a-f]+)?(")', 'g');
+      out = out.replace(re, '$1?v=' + hash + '$2');
+    }
+    if (out !== html) dirty.push(page);
+    if (!check) fs.writeFileSync(abs, out);
+  }
+  return dirty;
+}
+
+const v2Dirty = stampV2();
+if (check) {
+  if (v2Dirty.length) { console.error('STAMP STALE（v2）：' + v2Dirty.join(', ')); process.exit(1); }
+  console.log('v2 版本号均为最新');
+} else if (v2Dirty.length) {
+  console.log('已更新版本号：' + v2Dirty.join(', '));
+}
+
 if (check) {
   if (out !== html) { console.error('STAMP STALE：index.html 的版本号不是最新，先跑 node scripts/stamp-assets.js'); process.exit(1); }
   console.log('STAMP OK：index.html 的 css / js 版本号与文件内容一致');

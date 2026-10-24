@@ -8,15 +8,13 @@ require('../../algo.js');
 const API = require('../../api.js');
 const A = globalThis.SunsetAlgo;
 
-const UP_FULL = API.UP_DIST_KM;            // [50,100,200,300,400]
 const UP = [50, 150, 300];                 // 粗筛只用 3 个上游点，省 40% 调用额度
 const COORDS_PER_CITY = 1 + UP.length;     // 本点 + 3 个上游
 const CLOUD = API.CLOUD_VARS.join(',');
 
 // Open-Meteo 免费额度按「坐标数」计调用：一次 24 坐标 = 24 次调用。
 // 免费档约 600 次/分钟，这里压到 420 次/分钟留余量。
-// 免费档约 600/分钟、5,000/小时、10,000/天；按小时折算 ≈83/分钟，这里压到 70 留余量。
-const RATE_PER_MIN = Number(process.env.GLOW_RATE_PER_MIN || 70);
+const RATE_PER_MIN = Number(process.env.GLOW_RATE_PER_MIN || 70);   // 免费档小时上限 5,000 ≈ 83/分钟，压到 70
 const _calls = [];
 async function throttle(nCalls) {
   for (;;) {
@@ -137,7 +135,7 @@ async function scoreCities(cities, opts = {}) {
             const u = fc[m.base + k];
             if (u && u.hourly) ups.push({ hourly: u.hourly, utc_offset_seconds: u.utc_offset_seconds || ev.offset });
           }
-          const ov = f.minutely_15 ? null : null;
+          const ov = null;   // 粗筛不用 15 分钟窗口（精算阶段才用）
           const res = A.evaluate(f, a, ups, ev.epoch, m.bearing, ev.offset, ov, UP);
           results.push({
             city: m.city, score: res.score, grade: res.grade, level: res.level,

@@ -10,6 +10,7 @@
 
   var DEFAULT = { name: '胡志明市 · Thủ Đức', short: '胡志明市', lat: 10.79, lon: 106.75 };
   var state = { data: null, place: null, idx: 0, week: null, scope: 'global', tl: { t: 0, playing: false } };
+  var placeSeq = 0;   // 每次换地点 +1，旧响应回来时直接丢弃
 
   var gradeColor = function (level) { return 'var(--lv' + level + ')'; };
   // 任何拼进 innerHTML 的外部字符串都必须过这里（城市名来自 URL 参数）
@@ -158,11 +159,13 @@
   }
 
   function renderGates() {
-    var inp = state.data.events[state.idx].inputs || {};
+    var ev = state.data.events[state.idx];
+    var c = ev.comps || {};
+    var pick = function (k) { return (c[k] && c[k][0] != null) ? Math.round(c[k][0]) : null; };
     var rows = [
-      ['幕布', inp.mid != null ? Math.round((inp.high + inp.mid) / 2) : null],
-      ['缺口', inp.upLowAvg != null ? Math.round(100 - inp.upLowAvg * 3) : null],
-      ['低云', inp.low != null ? Math.round(100 - inp.low) : null]
+      ['幕布', pick('curtainV2')],
+      ['缺口', pick('gapV2')],
+      ['低云', pick('low')]
     ];
     $('#gates').innerHTML = rows.map(function (r) {
       var v = r[1] == null ? '—' : Math.max(0, Math.min(100, r[1]));
@@ -183,9 +186,14 @@
         (v > 70 ? 'rgba(255,90,31,.9)' : v > 45 ? 'rgba(255,159,69,.75)' : v > 22 ? 'rgba(255,126,139,.55)' : 'rgba(246,239,230,.18)') + '"></div>';
     }
     $('#tlBars').innerHTML = bars;
-    $('#tlBands').innerHTML = '<div class="tl-band" style="flex:1;background:var(--plasma)"></div>' +
-      '<div class="tl-band" style="flex:1.4;background:var(--ember)"></div>' +
-      '<div class="tl-band" style="flex:1.2;background:var(--gold)"></div>';
+    var bands = [
+      '<div class="tl-band" style="flex:1;background:var(--plasma)"></div>',
+      '<div class="tl-band" style="flex:1.4;background:var(--ember)"></div>',
+      '<div class="tl-band" style="flex:1.2;background:var(--gold)"></div>'
+    ];
+    // 日出：蓝调 → 火烧 → 金色；日落反过来
+    if (ev.type === 'sunset') bands.reverse();
+    $('#tlBands').innerHTML = bands.join('');
 
     var ticks = '';
     for (var m = -TL_SPAN; m <= TL_SPAN; m += 60) {
@@ -259,42 +267,46 @@
   }
 
   /* ---------------- 剖面 ---------------- */
+  // 11 项与算法 WEIGHTS 一一对应，数值直接取 ev.comps（不再自行拼公式）
   var ZONES = [
     { z: '8–12 km', rows: [
-      { nm: '高云幕布', en: 'CIRRUS', w: '×0.5', get: function (i) { return A.cCurtain(0, i.high); } },
-      { nm: '中云幕布', en: 'ALTOCU', w: '×0.5', get: function (i) { return A.cCurtain(i.mid, 0); } }
+      { nm: '幕布（中+高云受光）', en: 'CURTAIN', w: '×0.5', k: 'curtainV2' }
     ]},
     { z: '0–2 km', rows: [
-      { nm: '低云遮挡', en: 'STRATOCU', w: '×0.2', get: function (i) { return A.cLow(i.low); } }
+      { nm: '低云遮挡', en: 'STRATOCU', w: '×0.2', k: 'low' }
     ]},
     { z: '上游 50–400 km', rows: [
-      { nm: '晴空缺口', en: 'UPSTREAM', w: '×0.3', get: function (i) { return A.cGap2(i.upLowAvg, i.upMidAvg); } }
+      { nm: '晴空缺口', en: 'UPSTREAM', w: '×0.3', k: 'gapV2' }
     ]},
     { z: '地面', rows: [
-      { nm: '降水', w: '×10', get: function (i) { return A.cPrecip(i.precip, i.prob); } },
-      { nm: '气溶胶 AOD', w: '×5', get: function (i) { return A.cAod(i.aod); } },
-      { nm: '能见度', w: '×3', get: function (i) { return A.cVis(i.visKm != null ? i.visKm * 1000 : null); } },
-      { nm: 'PM2.5', w: '×3', get: function (i) { return A.cPm(i.pm); } },
-      { nm: '露点差', w: '×2', get: function (i) { return A.cDew(i.temp, i.dewPoint); } },
-      { nm: '风', w: '×2', get: function (i) { return A.cWind(i.windSpeed); } },
-      { nm: 'CAPE', w: '×2', get: function (i) { return A.cCape(i.cape, i.low, i.prob); } }
+      { nm: '降水', w: '×10', k: 'precip' },
+      { nm: '雨洗（前 3 小时）', w: '×10', k: 'washed' },
+      { nm: '气溶胶 AOD', w: '×5', k: 'aod' },
+      { nm: '能见度', w: '×3', k: 'vis' },
+      { nm: 'PM2.5', w: '×3', k: 'pm' },
+      { nm: '露点差', w: '×2', k: 'dew' },
+      { nm: '风', w: '×2', k: 'wind' },
+      { nm: 'CAPE', w: '×2', k: 'cape' }
     ]}
   ];
 
   function renderProfile(ev) {
-    var inp = ev.inputs || {}, html = '';
+    var comps = ev.comps || {}, inp = ev.inputs || {}, html = '';
     ZONES.forEach(function (z) {
       var first = true;
       z.rows.forEach(function (r) {
-        var res = r.get(inp) || [null, ''];
-        var v = res[0];
+        var cell = comps[r.k];
+        var v = cell ? cell[0] : null;
+        var note = cell ? cell[1] : '';
         var gate = r.w === '×0.5' || r.w === '×0.3' || r.w === '×0.2';
         var bar = v == null
           ? '<span class="pbar" style="background:transparent;border-top:1px dashed rgba(246,239,230,.3)"></span>'
           : '<span class="pbar"><i style="width:' + Math.max(0, Math.min(100, Math.round(v))) + '%;background:' + (gate ? 'var(--ember)' : 'var(--mist)') + '"></i></span>';
         html += '<div class="prow">' +
           '<span class="zz">' + (first ? z.z : '') + '</span>' +
-          '<span class="nm">' + r.nm + (r.en ? '<i>' + r.en + '</i>' : '') + '</span>' +
+          '<span class="nm">' + r.nm + (r.en ? '<i>' + r.en + '</i>' : '') +
+            (r.k === 'curtainV2' && inp.high != null ? '<i style="color:var(--veil)">高' + Math.round(inp.high) + '% / 中' + Math.round(inp.mid) + '%</i>' : '') +
+          '</span>' +
           '<span class="sb">' + bar + '</span>' +
           '<span class="w">' + r.w + '</span>' +
           '<span class="v">' + (v == null ? '<span style="font-size:10px;color:var(--veil)">无数据</span>' : Math.round(v)) + '</span>' +
@@ -486,12 +498,26 @@
   }
 
   function applyPlace(place) {
+    var seq = ++placeSeq;
     state.place = place;
     state.data = null;
+    // 清空上一处的读数，避免切城市时短暂出现「新城市名 + 旧数据」
+    $('#heroScore').textContent = '--';
+    $('#heroGrade').textContent = '取数中';
+    $('#heroChips').innerHTML = '';
+    $('#gates').innerHTML = '';
+    $('#pfRows').innerHTML = '';
+    $('#events').innerHTML = '';
+    $('#weekGrid').innerHTML = '';
     $('#searchLabel').textContent = place.short || place.name;
-    load(place);
-    FORECAST.weekly(place.lat, place.lon, 7).then(function (w) { state.week = w; renderWeek(); })
-      .catch(function (e) { $('#weekNote').textContent = '七日预报取数失败'; console.error(e); });
+    load(place, seq);
+    FORECAST.weekly(place.lat, place.lon, 7).then(function (w) {
+      if (seq !== placeSeq) return;          // 已经不是当前地点，丢弃
+      state.week = w; renderWeek();
+    }).catch(function (e) {
+      if (seq !== placeSeq) return;
+      $('#weekNote').textContent = '七日预报取数失败'; console.error(e);
+    });
   }
 
   function locate() {
@@ -518,15 +544,17 @@
   }
 
   /* ---------------- 启动 ---------------- */
-  function load(place) {
+  function load(place, seq) {
     state.place = place;
     $('#searchLabel').textContent = place.short || place.name;
     return API.evaluatePlace(place.lat, place.lon).then(function (d) {
+      if (seq != null && seq !== placeSeq) return;   // 迟到的旧地点，丢弃
       state.data = d;
       var now = Date.now(), first = 0;
       for (var i = 0; i < d.events.length; i++) { if (d.events[i].epoch > now - 15 * 60000) { first = i; break; } }
       var q = new URLSearchParams(location.search);
-      if (q.get('ev') != null && +q.get('ev') < d.events.length) first = +q.get('ev');
+      var evq = q.get('ev');
+      if (evq != null && /^\d+$/.test(evq) && +evq >= 0 && +evq < d.events.length) first = +evq;
       state.idx = first;
       renderHero(); renderEvents(); renderGates(); buildTimeline(); renderProfile(d.events[first]);
       syncURL();

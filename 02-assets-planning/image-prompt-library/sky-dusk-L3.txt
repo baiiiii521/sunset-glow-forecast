@@ -1,0 +1,19 @@
+用途：晚霞 · 档位 L3（小到中烧，演示分 58）的首屏天幕底图
+页面 / 模块：P01-02 Hero / P02-01 城市页头 / 分享卡（日落场）
+主体内容：半个天的层积云被自下而上点亮，橙、玫瑰、暖金；晚霞允许更浓的 ember 与金
+构图：地平线压在画面 80% 高度（只有一条极窄的地平线亮带），天空占 80%，无前中景
+摄影视角：地面视平线，广角 24–35mm 等效，水平构图，无畸变
+光照方向：光源在右下低空，太阳位于地平线下方 -3°
+天空与氛围：layered altocumulus covering half the sky lit from below in orange, rose and warm gold, clear glow on the right horizon, deep blue-violet above
+色彩体系：蓝紫上空 + 橙 / 玫瑰 / 暖金，暖色约 50%
+风格：电影感 35mm 胶片，自然曝光，细颗粒，轻微降饱和；不要 HDR / 不要霓虹
+比例 / 分辨率：16:9（16:9 landscape），最大输出约 1672×941
+透明背景：不需要（满幅实景）
+主体预留空间：左侧 1/3 保持更暗、更平、无强纹理，用于叠加大标题与分数
+需要避免：文字 / 界面 / 水印 / 月亮 / 星星 / 陆地 / 水面 / 人物 / 过度锐化 / 云纹重复
+
+---
+
+## PROMPT (EN) — 直接喂给 codex-image
+
+Cinematic 35mm photograph of the sky at dusk, grade 3 moderate burn. Layered altocumulus covering half the sky lit from below in orange, rose and warm gold, clear glow on the right horizon, deep blue-violet above, good contrast. Pure sky, no land, no water, no moon, no stars, no text, no UI. Horizon low at 80%, left third darker. Natural exposure, fine grain, no HDR. 16:9.

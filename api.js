@@ -1,9 +1,9 @@
 /* ============================================================
  * 全球朝霞晚霞预测 · 数据层（SunsetAPI）
  * 全部走浏览器端 fetch，直调 Open-Meteo 免费 API（支持 CORS，无需 key）。
- * 一次全新地点查询 = 1 本地预报 + 1 空气质量 + 1 多模式云量（本地 + 朝/晚霞各 3 个上游点）= 3 个请求，
- * 按 Open-Meteo 计费口径（多点、超 10 个变量会折算成多次）约 16 次调用。
- * 榜单每城 = 1 本地预报 + 1 空气质量 + 1 多模式云量（本地 + 3 个上游点）= 3 个请求，约 10 次调用。
+ * 一次全新地点查询 = 1 本地预报 + 1 空气质量 + 1 多模式云量（本地 + 朝/晚霞各 5 个上游点）= 3 个请求，
+ * 按 Open-Meteo 计费口径（多点、超 10 个变量会折算成多次）按需分批调用。
+ * 榜单每城 = 1 本地预报 + 1 空气质量 + 1 多模式云量（本地 + 5 个上游点）= 3 个请求，约 10 次调用。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -14,6 +14,17 @@
   var OM = (typeof globalThis !== 'undefined' && globalThis.GLOW_OM_BASE) || '';
   var FC_URL = OM ? OM + '/v1/forecast' : 'https://api.open-meteo.com/v1/forecast';
   var AQ_URL = OM ? OM + '/air-quality/v1/air-quality' : 'https://air-quality-api.open-meteo.com/v1/air-quality';
+  var FC_DIRECT = 'https://api.open-meteo.com/v1/forecast';
+  var AQ_DIRECT = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+  // 启用代理时把坐标取整到 0.05°（约 5km）：定位用户的缓存命中率从≈0 提到可用
+  function q(v) { return OM ? (Math.round(v * 20) / 20).toFixed(3) : v.toFixed(4); }
+  // 代理挂掉时回落到直连，避免 /om 成为全站单点
+  function directOf(url) {
+    if (!OM) return null;
+    if (url.indexOf(FC_URL) === 0) return url.replace(FC_URL, FC_DIRECT);
+    if (url.indexOf(AQ_URL) === 0) return url.replace(AQ_URL, AQ_DIRECT);
+    return null;
+  }
 
   var HOURLY_VARS = [
     'temperature_2m', 'relative_humidity_2m', 'dew_point_2m', 'precipitation',
@@ -26,6 +37,7 @@
   var RETRY_429 = [4000, 12000];
 
   function fetchJSON(url, timeoutMs, attempt) {
+    var direct = (!attempt && directOf(url)) || null;
     attempt = attempt || 0;
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || 30000);
@@ -39,6 +51,8 @@
       return r.json();
     }).catch(function (e) {
       clearTimeout(timer);
+      // 代理（/om）失败：回落直连再试一次，避免 /om 成为单点
+      if (direct) return fetchJSON(direct, timeoutMs, attempt);
       if (e.name === 'AbortError') throw new Error('请求超时');
       throw e;
     });
@@ -153,13 +167,13 @@
   /* ---------------- 预报抓取与评分 ---------------- */
 
   function forecastURL(lat, lon, tz, days) {
-    return FC_URL + '?latitude=' + lat.toFixed(4) + '&longitude=' + lon.toFixed(4) +
+    return FC_URL + '?latitude=' + q(lat) + '&longitude=' + q(lon) +
       '&hourly=' + HOURLY_VARS + '&minutely_15=' + CLOUD_VARS.join(',') + '&daily=sunrise,sunset&timezone=' +
       encodeURIComponent(tz) + '&forecast_days=' + (days || 3);
   }
 
   function aqURL(lat, lon, tz, days) {
-    return AQ_URL + '?latitude=' + lat.toFixed(4) + '&longitude=' + lon.toFixed(4) +
+    return AQ_URL + '?latitude=' + q(lat) + '&longitude=' + q(lon) +
       '&hourly=aerosol_optical_depth,pm2_5,pm10,dust&timezone=' +
       encodeURIComponent(tz) + '&forecast_days=' + (days || 3);
   }
@@ -180,8 +194,8 @@
 
   // points: [{lat, lon}]，一次请求返回所有点 × 所有模式
   function ensembleURL(points, tz, days) {
-    return FC_URL + '?latitude=' + points.map(function (p) { return p.lat.toFixed(4); }).join(',') +
-      '&longitude=' + points.map(function (p) { return p.lon.toFixed(4); }).join(',') +
+    return FC_URL + '?latitude=' + points.map(function (p) { return q(p.lat); }).join(',') +
+      '&longitude=' + points.map(function (p) { return q(p.lon); }).join(',') +
       '&hourly=' + CLOUD_VARS.join(',') + '&models=' + MODELS.map(function (m) { return m[0]; }).join(',') +
       '&timezone=' + encodeURIComponent(tz) + '&forecast_days=' + (days || 3);
   }

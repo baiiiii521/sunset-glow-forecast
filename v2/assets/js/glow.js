@@ -218,18 +218,21 @@ window.GLOW = (function () {
       .then(function (j) { _snap = j; _snapAt = Date.now(); return j; })
       .catch(function () { _snap = { cities: {} }; return _snap; });
   }
-  function snapshotFor(name, lat) {
+  // 快照匹配：优先同名同纬，其次按坐标最近（≤0.08° ≈ 9km），不再强求名字一致
+  function snapshotFor(name, lat, lon) {
     return loadSnapshots().then(function (j) {
       var c = j.cities || {};
-      var k = name + '|' + Number(lat).toFixed(2);
+      var k = name + '|' + Number(lat).toFixed(2) + '|' + Number(lon).toFixed(2);
       if (c[k]) return { row: c[k], computedAt: j.computedAt };
-      // 名字对不上时按最近坐标找（0.05° ≈ 5km）
       var best = null;
       Object.keys(c).forEach(function (key) {
         var parts = key.split('|');
-        if (parts[0] !== name) return;
-        var d = Math.abs(parseFloat(parts[1]) - Number(lat));
-        if (d < 0.05 && (!best || d < best.d)) best = { d: d, row: c[key] };
+        var dLat = Math.abs(parseFloat(parts[1]) - Number(lat));
+        var dLon = parts[2] == null ? 0 : Math.abs(parseFloat(parts[2]) - Number(lon));
+        if (dLat > 0.08 || dLon > 0.08) return;
+        var d = dLat + dLon;
+        if (parts[0] === name) d -= 0.05;          // 同名优先
+        if (!best || d < best.d) best = { d: d, row: c[key] };
       });
       return best ? { row: best.row, computedAt: j.computedAt } : null;
     });

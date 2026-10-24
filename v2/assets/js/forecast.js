@@ -29,11 +29,12 @@ window.FORECAST = (function () {
       ]).then(function (pair) {
         var aq = pair[0], ens = pair[1];
         var days = dates.map(function (d, i) {
-          var ssEpoch = A.toEpoch(daily.sunset[i], offset);
-          var srEpoch = A.toEpoch(daily.sunrise[i], offset);
+          // 极昼/极夜时 daily.sunset 或 sunrise 会是 null，跳过这一场，别算出 NaN
+          var ssEpoch = daily.sunset && daily.sunset[i] ? A.toEpoch(daily.sunset[i], offset) : null;
+          var srEpoch = daily.sunrise && daily.sunrise[i] ? A.toEpoch(daily.sunrise[i], offset) : null;
           var ss = null, sr = null;
-          try { ss = API.scoreEvent(fc, aq, ssEpoch, bearings[i].ss, offset, ens, ep.upIdx[1], ep.dist); } catch (e) {}
-          try { sr = API.scoreEvent(fc, aq, srEpoch, bearings[i].sr, offset, ens, ep.upIdx[0], ep.dist); } catch (e) {}
+          if (ssEpoch != null) { try { ss = API.scoreEvent(fc, aq, ssEpoch, bearings[i].ss, offset, ens, ep.upIdx[1], ep.dist); } catch (e) {} }
+          if (srEpoch != null) { try { sr = API.scoreEvent(fc, aq, srEpoch, bearings[i].sr, offset, ens, ep.upIdx[0], ep.dist); } catch (e) {} }
           if (ss) { ss.epoch = ssEpoch; ss.bearing = bearings[i].ss; ss.type = 'sunset'; }
           if (sr) { sr.epoch = srEpoch; sr.bearing = bearings[i].sr; sr.type = 'sunrise'; }
           return { date: d, sunset: ss, sunrise: sr };
