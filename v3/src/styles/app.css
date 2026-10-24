@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+/* ============ GLOW v3 · TWILIGHT EDITORIAL 设计 token（design-system/xaguang/MASTER.md） ============ */
+@theme {
+  --color-ink-900: #06050e;
+  --color-ink-800: #0b0918;
+  --color-ink-700: #120e26;
+  --color-twilight-600: #1b1140;
+  --color-twilight-500: #2a1a55;
+
+  --color-cream: #f6efe6;
+  --color-mist: rgba(246, 239, 230, 0.74);
+  --color-veil: rgba(246, 239, 230, 0.56);
+  --color-line: rgba(246, 239, 230, 0.1);
+  --color-line-strong: rgba(246, 239, 230, 0.22);
+
+  --color-ember: #ff5a1f;
+  --color-gold: #ffc36b;
+  --color-rose: #ff7e8b;
+  --color-plasma: #b14bff;
+
+  --color-lv0: #6e6a80;
+  --color-lv1: #8c7bb8;
+  --color-lv2: #ff7e8b;
+  --color-lv3: #ff9f45;
+  --color-lv4: #ff5a1f;
+  --color-lv5: #ffc36b;
+
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --font-label: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --ease-glow: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ============ 基础 ============ */
+html {
+  scroll-behavior: smooth;
+}
+body {
+  background: var(--color-ink-900);
+  color: var(--color-cream);
+  font-family: system-ui, -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  font-size: clamp(15px, 1.05vw, 17px);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+::selection {
+  background: var(--color-ember);
+  color: var(--color-ink-900);
+}
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2440;
+  border: 2px solid var(--color-ink-900);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-ink-900);
+}
+
+@layer components {
+  /* mono 小标签：全大写 + 宽字距 */
+  .label {
+    font-family: var(--font-label);
+    font-size: 11.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-veil);
+  }
+
+  /* 直角按钮 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 240ms var(--ease-glow);
+  }
+  .btn-primary {
+    background: var(--color-ember);
+    color: var(--color-ink-900);
+  }
+  .btn-primary:hover {
+    background: var(--color-gold);
+  }
+  .btn-ghost {
+    border-color: var(--color-line-strong);
+    color: var(--color-cream);
+    background: transparent;
+  }
+  .btn-ghost:hover {
+    border-color: var(--color-cream);
+    background: rgba(246, 239, 230, 0.06);
+  }
+
+  /* 编辑部直角卡 */
+  .card {
+    background: var(--color-ink-800);
+    border: 1px solid var(--color-line);
+    transition: background 240ms var(--ease-glow), border-color 240ms var(--ease-glow);
+  }
+  .card-hover:hover {
+    background: var(--color-ink-700);
+    border-color: var(--color-line-strong);
+  }
+
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    color: var(--color-mist);
+    border: 1px solid var(--color-line);
+    background: transparent;
+    transition: all 240ms var(--ease-glow);
+  }
+  .icon-btn:hover {
+    color: var(--color-cream);
+    border-color: var(--color-line-strong);
+    background: var(--color-ink-700);
+  }
+
+  /* 数据表行 */
+  .data-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 4px;
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .serif-num {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ============ Aurora 流动渐变（MASTER §4） ============ */
+@keyframes glow-aurora {
+  0%,
+  100% {
+    background-position: 0% 40%, 90% 10%, 40% 90%;
+  }
+  50% {
+    background-position: 30% 70%, 40% 60%, 70% 20%;
+  }
+}
+.aurora {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(42% 55% at 20% 30%, var(--color-twilight-500) 0%, transparent 70%),
+    radial-gradient(38% 48% at 82% 18%, rgba(177, 75, 255, 0.8) 0%, transparent 72%),
+    radial-gradient(46% 60% at 50% 95%, var(--color-twilight-600) 0%, transparent 75%);
+  background-size: 200% 200%, 200% 200%, 200% 200%;
+  animation: glow-aurora 12s var(--ease-glow) infinite;
+}
+
+/* ============ Sky Timeline 拖动条 ============ */
+.glow-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--color-line-strong);
+  cursor: ew-resize;
+}
+.glow-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 4px;
+  height: 30px;
+  background: var(--color-cream);
+  cursor: ew-resize;
+}
+.glow-range::-moz-range-thumb {
+  width: 4px;
+  height: 30px;
+  background: var(--color-cream);
+  border: 0;
+  border-radius: 0;
+  cursor: ew-resize;
+}
+
+/* ============ 无障碍：动效降级 ============ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .aurora {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

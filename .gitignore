@@ -11,3 +11,9 @@ __pycache__/
 # macOS
 .DS_Store
 **/.DS_Store
+
+# v3 React 预览版
+v3/node_modules/
+v3/dist/
+v3/public/data/
+v3/public/sky/
