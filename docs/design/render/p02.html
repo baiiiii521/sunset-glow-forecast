@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><title>GLOW · P02 城市</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;900&family=JetBrains+Mono:wght@400;600&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="system.css">
+</head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <filter id="cl" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.003 0.012" numOctaves="5" seed="11" result="n"/>
+    <feColorMatrix in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4.2 0 0 0 -1.9" result="m"/>
+    <feGaussianBlur in="m" stdDeviation="1.1" result="mb"/>
+    <feDiffuseLighting in="n" surfaceScale="4" diffuseConstant="1.15" lighting-color="#FFB070" result="l">
+      <feDistantLight azimuth="100" elevation="8"/></feDiffuseLighting>
+    <feComposite in="SourceGraphic" in2="l" operator="arithmetic" k1="1.2" k2="0.35" k3="0.2" k4="0" result="c"/>
+    <feComposite in="c" in2="mb" operator="in"/>
+  </filter>
+  <radialGradient id="gFire" cx=".56" cy="1" r=".8">
+    <stop offset="0" stop-color="#FFE0A6"/><stop offset=".3" stop-color="#FF7A32"/>
+    <stop offset=".65" stop-color="#B4324F"/><stop offset="1" stop-color="#2A1240"/></radialGradient>
+  <radialGradient id="gTw" cx=".5" cy="1" r=".85">
+    <stop offset="0" stop-color="#FFB47A"/><stop offset=".32" stop-color="#8A3A6E"/>
+    <stop offset=".7" stop-color="#3A1B58"/><stop offset="1" stop-color="#0C0920"/></radialGradient>
+  <linearGradient id="ray" x1="0" y1="1" x2="0" y2="0">
+    <stop offset="0" stop-color="#FFC36B" stop-opacity=".55"/><stop offset="1" stop-color="#FFC36B" stop-opacity="0"/></linearGradient>
+</defs></svg>
+
+<!-- ============ 02-01 CITY HEADER ============ -->
+<section class="stage" id="p02-01">
+  <div class="sky fire" style="opacity:.55">
+    <div class="sky-grad"></div>
+    <svg class="sky-clouds" preserveAspectRatio="none" viewBox="0 0 1440 810"><rect width="1440" height="810" fill="url(#gFire)" filter="url(#cl)"/></svg>
+    <div class="sky-horizon"></div><div class="sky-grain"></div>
+  </div>
+  <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,5,14,.94) 0%,rgba(6,5,14,.86) 38%,rgba(6,5,14,.45) 70%,rgba(6,5,14,.72) 100%)"></div>
+
+  <div class="mast">
+    <div class="brand"><div class="stamp">霞</div><div class="brand-txt"><b>GLOW</b><span>火烧云预报</span></div></div>
+    <div class="nav"><a class="on"><i>01</i>今晚</a><a><i>02</i>霞榜</a><a><i>03</i>算法</a></div>
+    <div class="row center gap12">
+      <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9C9189" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span>胡志明市</span><kbd>⌘K</kbd></div>
+      <div class="icon-btn" style="color:var(--gold)"><svg width="18" height="18" viewBox="0 0 24 24" fill="#FFC36B" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg></div>
+      <div class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12v7h16v-7"/><path d="M12 16V3"/><path d="M8 7l4-4 4 4"/></svg></div>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:56px;top:150px;width:420px">
+    <div class="row gap12 center">
+      <span class="lab">CITY / 城市</span><span class="lab" style="opacity:.6">·</span><span class="lab">/c/ho-chi-minh</span>
+    </div>
+    <h1 class="display" style="font-size:84px;margin-top:18px">胡志明市</h1>
+    <div class="italic" style="font-size:28px;color:var(--mist);margin-top:6px">Ho Chi Minh City</div>
+
+    <div class="row gap24" style="margin-top:26px">
+      <div><div class="lab">国家</div><div class="mono" style="font-size:13px;margin-top:6px">越南 VN</div></div>
+      <div><div class="lab">坐标</div><div class="mono" style="font-size:13px;margin-top:6px">10.79°N 106.75°E</div></div>
+      <div><div class="lab">时区</div><div class="mono" style="font-size:13px;margin-top:6px">UTC+7</div></div>
+    </div>
+
+    <div class="row gap12" style="margin-top:34px">
+      <div class="btn btn-ghost" style="height:40px;padding:0 16px;font-size:12px">★ 已收藏</div>
+      <div class="btn btn-ghost" style="height:40px;padding:0 16px;font-size:12px">分享卡片</div>
+    </div>
+  </div>
+
+  <!-- sticky verdict rail -->
+  <div class="abs" style="right:56px;top:150px;width:360px;padding:28px;border:1px solid var(--line);background:rgba(6,5,14,.55)">
+    <div class="lab">今晚 晚霞</div>
+    <div class="row" style="align-items:flex-end;gap:14px;margin-top:10px">
+      <div class="score g-lv4" style="font-size:104px">68</div>
+      <div class="col" style="padding-bottom:14px;gap:4px">
+        <span class="mono" style="font-size:12px;color:var(--veil)">/100</span>
+        <span class="h3">中到大烧</span>
+      </div>
+    </div>
+    <div class="bar" style="margin-top:10px"><i style="width:68%;background:var(--lv4)"></i></div>
+    <div class="col gap8" style="margin-top:20px">
+      <div class="row between"><span class="small">日落</span><span class="mono" style="font-size:13px">17:32</span></div>
+      <div class="row between"><span class="small">最佳窗口</span><span class="mono" style="font-size:13px">17:19–17:58</span></div>
+      <div class="row between"><span class="small">方位</span><span class="mono" style="font-size:13px">257°</span></div>
+      <div class="row between"><span class="small">把握</span><span class="mono" style="font-size:13px">中</span></div>
+    </div>
+    <div class="hr" style="margin:20px 0"></div>
+    <div class="row between"><span class="lab">明晚</span><span class="mono g-lv4" style="font-size:20px">75</span></div>
+    <div class="row between" style="margin-top:10px"><span class="lab">周二 10-28</span><span class="mono" style="font-size:13px;color:var(--mist)">69</span></div>
+  </div>
+
+  <div class="abs" style="left:56px;right:56px;bottom:56px;border-top:1px solid var(--line);padding-top:22px">
+    <div class="row between" style="align-items:flex-end">
+      <div class="row gap24">
+        <div><div class="lab">本周最高</div><div class="mono" style="font-size:22px;margin-top:4px;color:var(--gold)">10-28 · 69</div></div>
+        <div><div class="lab">今明两晚</div><div class="mono" style="font-size:22px;margin-top:4px">68 / 75</div></div>
+        <div><div class="lab">霞榜排名</div><div class="mono" style="font-size:22px;margin-top:4px">未进 TOP10</div></div>
+      </div>
+      <div class="row gap10" style="align-items:flex-end;height:44px">
+        <div style="width:26px;height:24px;background:rgba(255,126,139,.35)"></div>
+        <div style="width:26px;height:32px;background:rgba(255,159,69,.45)"></div>
+        <div style="width:26px;height:27px;background:rgba(255,126,139,.4)"></div>
+        <div style="width:26px;height:29px;background:rgba(255,126,139,.4)"></div>
+        <div style="width:26px;height:44px;background:var(--ember)"></div>
+        <div style="width:26px;height:22px;background:rgba(140,123,184,.45)"></div>
+        <div style="width:26px;height:34px;background:rgba(255,159,69,.45)"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02-02 SEVEN-DAY MATRIX ============ -->
+<section class="stage" id="p02-02">
+  <div style="position:absolute;inset:0;background:linear-gradient(180deg,#0B0918,#080613)"></div>
+  <div style="position:absolute;left:56px;right:56px;top:88px">
+    <div class="row between" style="align-items:flex-end">
+      <div><div class="lab">01 — SEVEN DAYS / 七日</div>
+        <h2 class="h1" style="margin-top:10px;font-size:44px">这一周，哪一天值得跑一趟。</h2></div>
+      <div class="row gap12 center"><span class="lab">晚</span><span class="chip" style="height:24px"><b>晚霞</b></span><span class="chip" style="height:24px;opacity:.5">朝霞</span></div>
+    </div>
+
+    <!-- header row -->
+    <div style="display:grid;grid-template-columns:120px repeat(7,1fr);margin-top:40px;border-bottom:1px solid var(--line-strong)">
+      <div class="lab" style="padding-bottom:12px">日期</div>
+      <div class="lab" style="padding-bottom:12px;text-align:center">10-24 周六</div>
+      <div class="lab" style="padding-bottom:12px;text-align:center">10-25 周日</div>
+      <div class="lab" style="padding-bottom:12px;text-align:center">10-26 周一</div>
+      <div class="lab" style="padding-bottom:12px;text-align:center">10-27 周二</div>
+      <div class="lab" style="padding-bottom:12px;text-align:center;color:var(--gold)">10-28 周三</div>
+      <div class="lab" style="padding-bottom:12px;text-align:center">10-29 周四</div>
+      <div class="lab" style="padding-bottom:12px;text-align:center">10-30 周五</div>
+    </div>
+
+    <!-- row: 晚 -->
+    <div style="display:grid;grid-template-columns:120px repeat(7,1fr);align-items:stretch;border-bottom:1px solid var(--line)">
+      <div class="small" style="display:flex;align-items:center">晚霞</div>
+      <div style="padding:14px 6px"><div style="height:104px;background:rgba(255,126,139,.14);display:grid;place-items:center"><span class="mono" style="font-size:26px;color:var(--lv2)">35</span></div></div>
+      <div style="padding:14px 6px"><div style="height:104px;background:rgba(255,159,69,.14);display:grid;place-items:center"><span class="mono" style="font-size:26px;color:var(--lv3)">46</span></div></div>
+      <div style="padding:14px 6px"><div style="height:104px;background:rgba(255,126,139,.14);display:grid;place-items:center"><span class="mono" style="font-size:26px;color:var(--lv2)">38</span></div></div>
+      <div style="padding:14px 6px"><div style="height:104px;background:rgba(255,126,139,.14);display:grid;place-items:center"><span class="mono" style="font-size:26px;color:var(--lv2)">40</span></div></div>
+      <div style="padding:14px 6px"><div style="height:104px;background:rgba(255,90,31,.2);border:1px solid var(--ember);display:grid;place-items:center"><span class="mono" style="font-size:30px;color:var(--lv4)">69</span></div></div>
+      <div style="padding:14px 6px"><div style="height:104px;background:rgba(140,123,184,.14);display:grid;place-items:center"><span class="mono" style="font-size:26px;color:var(--lv1)">30</span></div></div>
+      <div style="padding:14px 6px"><div style="height:104px;background:rgba(255,159,69,.14);display:grid;place-items:center"><span class="mono" style="font-size:26px;color:var(--lv3)">52</span></div></div>
+    </div>
+
+    <!-- row: 朝 -->
+    <div style="display:grid;grid-template-columns:120px repeat(7,1fr);align-items:stretch;border-bottom:1px solid var(--line);opacity:.55">
+      <div class="small" style="display:flex;align-items:center">朝霞</div>
+      <div style="padding:10px 6px"><div style="height:78px;display:grid;place-items:center"><span class="mono" style="font-size:20px;color:var(--lv1)">28</span></div></div>
+      <div style="padding:10px 6px"><div style="height:78px;display:grid;place-items:center"><span class="mono" style="font-size:20px;color:var(--lv3)">54</span></div></div>
+      <div style="padding:10px 6px"><div style="height:78px;display:grid;place-items:center"><span class="mono" style="font-size:20px;color:var(--lv2)">44</span></div></div>
+      <div style="padding:10px 6px"><div style="height:78px;display:grid;place-items:center"><span class="mono" style="font-size:20px;color:var(--lv2)">36</span></div></div>
+      <div style="padding:10px 6px"><div style="height:78px;display:grid;place-items:center"><span class="mono" style="font-size:20px;color:var(--lv3)">58</span></div></div>
+      <div style="padding:10px 6px"><div style="height:78px;display:grid;place-items:center"><span class="mono" style="font-size:20px;color:var(--lv2)">48</span></div></div>
+      <div style="padding:10px 6px"><div style="height:78px;display:grid;place-items:center"><span class="mono" style="font-size:20px;color:var(--lv2)">33</span></div></div>
+    </div>
+
+    <!-- row: 日落 -->
+    <div style="display:grid;grid-template-columns:120px repeat(7,1fr);border-bottom:1px solid var(--line)">
+      <div class="small" style="display:flex;align-items:center">日落</div>
+      <div class="mono" style="padding:12px 0;text-align:center;font-size:12px;color:var(--mist)">17:31</div>
+      <div class="mono" style="padding:12px 0;text-align:center;font-size:12px;color:var(--mist)">17:31</div>
+      <div class="mono" style="padding:12px 0;text-align:center;font-size:12px;color:var(--mist)">17:30</div>
+      <div class="mono" style="padding:12px 0;text-align:center;font-size:12px;color:var(--mist)">17:30</div>
+      <div class="mono" style="padding:12px 0;text-align:center;font-size:12px;color:var(--cream)">17:30</div>
+      <div class="mono" style="padding:12px 0;text-align:center;font-size:12px;color:var(--mist)">17:29</div>
+      <div class="mono" style="padding:12px 0;text-align:center;font-size:12px;color:var(--mist)">17:29</div>
+    </div>
+
+    <div class="row between" style="margin-top:26px">
+      <span class="small">本周最有机会：<b style="color:var(--gold)">10-28 周三 · 69 分 · 中到大烧</b></span>
+      <span class="lab">点击任一天 → /c/ho-chi-minh?d=2026-10-28</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02-03 CLOUD DECK ============ -->
+<section class="stage" id="p02-03">
+  <div style="position:absolute;inset:0;background:linear-gradient(180deg,#0A0718,#120E26)"></div>
+  <div style="position:absolute;left:56px;top:64px;width:420px">
+    <div class="lab">02 — CLOUD DECK / 云层剖面</div>
+    <h2 class="h1" style="margin-top:12px;font-size:44px">光从哪里来，<br>被谁挡住。</h2>
+    <p class="body" style="margin-top:14px;font-size:14px">太阳方位 257°，仰角 −2°。上游 5 个采样点决定「缺口」有多大。云带的深浅就是云量。</p>
+  </div>
+
+  <div class="abs" style="left:0;right:0;bottom:0;height:560px">
+    <svg viewBox="0 0 1440 560" style="width:100%;height:100%">
+      <!-- sky -->
+      <rect width="1440" height="560" fill="url(#gTw)" opacity=".35"/>
+      <!-- sun rays -->
+      <g opacity=".55">
+        <path d="M1440 430 L520 300 L520 340 Z" fill="url(#ray)" opacity=".18"/>
+        <path d="M1440 430 L360 268 L360 300 Z" fill="url(#ray)" opacity=".12"/>
+      </g>
+      <!-- high cloud band 8.6km -->
+      <g>
+        <rect x="0" y="96" width="1440" height="86" opacity=".9" filter="url(#cl)" fill="url(#gFire)"/>
+        <line x1="0" y1="96" x2="1440" y2="96" stroke="rgba(246,239,230,.12)"/>
+      </g>
+      <!-- mid cloud band 5.2km -->
+      <g>
+        <rect x="0" y="220" width="1440" height="66" opacity=".8" filter="url(#cl)" fill="url(#gFire)"/>
+        <line x1="0" y1="220" x2="1440" y2="220" stroke="rgba(246,239,230,.12)"/>
+      </g>
+      <!-- low cloud band 1.2km -->
+      <g>
+        <rect x="0" y="352" width="1440" height="44" opacity=".65" filter="url(#cl)" fill="url(#gTw)"/>
+        <line x1="0" y1="352" x2="1440" y2="352" stroke="rgba(246,239,230,.12)"/>
+      </g>
+      <!-- horizon arc -->
+      <path d="M0 430 Q720 396 1440 430 L1440 560 L0 560 Z" fill="#06050E"/>
+      <!-- sun -->
+      <circle cx="1330" cy="428" r="9" fill="#FFC36B"/>
+      <circle cx="1330" cy="428" r="22" fill="#FFC36B" opacity=".18"/>
+      <!-- upstream sample markers -->
+      <g font-family="JetBrains Mono" font-size="10" fill="rgba(246,239,230,.55)">
+        <line x1="1240" y1="430" x2="1240" y2="452" stroke="rgba(246,239,230,.3)"/><text x="1240" y="468" text-anchor="middle">50 km</text>
+        <line x1="1120" y1="426" x2="1120" y2="452" stroke="rgba(246,239,230,.3)"/><text x="1120" y="468" text-anchor="middle">100</text>
+        <line x1="900" y1="420" x2="900" y2="452" stroke="rgba(246,239,230,.3)"/><text x="900" y="468" text-anchor="middle">200</text>
+        <line x1="620" y1="414" x2="620" y2="452" stroke="rgba(246,239,230,.3)"/><text x="620" y="468" text-anchor="middle">300</text>
+        <line x1="300" y1="408" x2="300" y2="452" stroke="rgba(246,239,230,.3)"/><text x="300" y="468" text-anchor="middle">400</text>
+      </g>
+      <!-- gap highlight -->
+      <path d="M300 408 L620 414 L620 430 L300 430 Z" fill="#FFC36B" opacity=".10"/>
+      <text x="430" y="492" font-family="JetBrains Mono" font-size="11" fill="#FFC36B">缺口 · 上游 62% 晴</text>
+
+      <!-- layer labels -->
+      <g font-family="JetBrains Mono" font-size="11" fill="rgba(246,239,230,.5)">
+        <text x="56" y="88">8.6 km · 高云 78% · ×0.5</text>
+        <text x="56" y="212">5.2 km · 中云 62% · ×0.5</text>
+        <text x="56" y="344">1.2 km · 低云 18% · ×0.2</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="abs" style="right:56px;top:120px;width:300px">
+    <div class="card" style="padding:22px">
+      <div class="lab">门控得分</div>
+      <div class="col gap16" style="margin-top:16px">
+        <div><div class="row between"><span class="small">幕布</span><span class="mono" style="font-size:13px">78</span></div><div class="pbar" style="margin-top:6px"><i style="width:78%;background:var(--ember)"></i></div></div>
+        <div><div class="row between"><span class="small">缺口</span><span class="mono" style="font-size:13px">72</span></div><div class="pbar" style="margin-top:6px"><i style="width:72%;background:var(--ember)"></i></div></div>
+        <div><div class="row between"><span class="small">低云遮挡</span><span class="mono" style="font-size:13px">82</span></div><div class="pbar" style="margin-top:6px"><i style="width:82%;background:var(--ember)"></i></div></div>
+      </div>
+      <div class="hr" style="margin:18px 0"></div>
+      <div class="row between"><span class="lab">几何合成</span><span class="mono" style="font-size:20px;color:var(--cream)">72</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02-04 MODEL CONSENSUS ============ -->
+<section class="stage" id="p02-04">
+  <div style="position:absolute;inset:0;background:#080613"></div>
+  <div style="position:absolute;left:56px;top:64px;width:100%">
+    <div class="row between" style="align-items:flex-end;padding-right:56px">
+      <div><div class="lab">03 — CONSENSUS / 模式分歧</div>
+        <h2 class="h1" style="margin-top:10px;font-size:44px">四家投票，51 个成员。</h2></div>
+      <div class="row gap8"><span class="chip"><span class="veil">把握</span><b style="color:var(--ok)">高</b></span>
+        <span class="chip"><span class="veil">极差</span><b>15</b></span></div>
+    </div>
+  </div>
+
+  <div class="abs" style="left:56px;right:56px;top:220px">
+    <!-- axis -->
+    <div style="position:relative;height:44px;border-bottom:1px solid var(--line)">
+      <div class="row between"><span class="lab">0</span><span class="lab">20 微烧</span><span class="lab">35 小烧</span><span class="lab">50 小到中</span><span class="lab">65 中到大</span><span class="lab">80 大烧</span><span class="lab">100</span></div>
+    </div>
+    <!-- model rows -->
+    <div class="col" style="gap:0">
+      <div style="position:relative;height:84px;border-bottom:1px solid var(--line)">
+        <span class="lab" style="position:absolute;left:0;top:32px;width:110px">综合 ×3</span>
+        <div style="position:absolute;left:130px;right:0;top:41px;height:1px;background:var(--line)"></div>
+        <div style="position:absolute;left:calc(130px + (100% - 130px)*.68);top:32px;width:1px;height:18px;background:var(--cream)"></div>
+        <span class="mono" style="position:absolute;left:calc(130px + (100% - 130px)*.68 + 10px);top:28px;font-size:13px">68</span>
+      </div>
+      <div style="position:relative;height:84px;border-bottom:1px solid var(--line)">
+        <span class="lab" style="position:absolute;left:0;top:32px;width:110px">ECMWF</span>
+        <div style="position:absolute;left:130px;right:0;top:41px;height:1px;background:var(--line)"></div>
+        <div style="position:absolute;left:calc(130px + (100% - 130px)*.71);top:32px;width:1px;height:18px;background:var(--cream)"></div>
+        <span class="mono" style="position:absolute;left:calc(130px + (100% - 130px)*.71 + 10px);top:28px;font-size:13px">71</span>
+      </div>
+      <div style="position:relative;height:84px;border-bottom:1px solid var(--line)">
+        <span class="lab" style="position:absolute;left:0;top:32px;width:110px">GFS</span>
+        <div style="position:absolute;left:130px;right:0;top:41px;height:1px;background:var(--line)"></div>
+        <div style="position:absolute;left:calc(130px + (100% - 130px)*.55);top:32px;width:1px;height:18px;background:var(--plasma)"></div>
+        <span class="mono" style="position:absolute;left:calc(130px + (100% - 130px)*.55 + 10px);top:28px;font-size:13px;color:var(--plasma)">55</span>
+      </div>
+      <div style="position:relative;height:84px;border-bottom:1px solid var(--line-strong)">
+        <span class="lab" style="position:absolute;left:0;top:32px;width:110px">ICON</span>
+        <div style="position:absolute;left:130px;right:0;top:41px;height:1px;background:var(--line)"></div>
+        <div style="position:absolute;left:calc(130px + (100% - 130px)*.69);top:32px;width:1px;height:18px;background:var(--cream)"></div>
+        <span class="mono" style="position:absolute;left:calc(130px + (100% - 130px)*.69 + 10px);top:28px;font-size:13px">69</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="abs" style="left:56px;right:56px;bottom:56px">
+    <div class="lab" style="margin-bottom:14px">ECMWF ENS · 51 成员 · 霞分分布</div>
+    <div style="display:flex;align-items:flex-end;gap:3px;height:158px">
+      <div style="flex:1;height:6px;background:rgba(140,123,184,.4)"></div>
+      <div style="flex:1;height:8px;background:rgba(140,123,184,.45)"></div>
+      <div style="flex:1;height:12px;background:rgba(140,123,184,.5)"></div>
+      <div style="flex:1;height:16px;background:rgba(255,126,139,.45)"></div>
+      <div style="flex:1;height:22px;background:rgba(255,126,139,.5)"></div>
+      <div style="flex:1;height:30px;background:rgba(255,126,139,.55)"></div>
+      <div style="flex:1;height:44px;background:rgba(255,159,69,.55)"></div>
+      <div style="flex:1;height:62px;background:rgba(255,159,69,.65)"></div>
+      <div style="flex:1;height:86px;background:rgba(255,90,31,.7)"></div>
+      <div style="flex:1;height:104px;background:rgba(255,90,31,.8)"></div>
+      <div style="flex:1;height:118px;background:rgba(255,90,31,.9)"></div>
+      <div style="flex:1;height:112px;background:rgba(255,90,31,.9)"></div>
+      <div style="flex:1;height:96px;background:rgba(255,195,107,.75)"></div>
+      <div style="flex:1;height:104px;background:rgba(255,195,107,.6)"></div>
+      <div style="flex:1;height:52px;background:rgba(255,195,107,.45)"></div>
+      <div style="flex:1;height:34px;background:rgba(246,239,230,.25)"></div>
+      <div style="flex:1;height:20px;background:rgba(246,239,230,.18)"></div>
+      <div style="flex:1;height:12px;background:rgba(246,239,230,.14)"></div>
+    </div>
+    <div class="row between" style="margin-top:12px">
+      <span class="lab">P10 58</span><span class="lab" style="color:var(--cream)">中位 71</span><span class="lab">P90 84</span>
+      <span class="lab">P(小烧以上) <b style="color:var(--cream)">94%</b></span>
+      <span class="lab">P(中到大烧) <b style="color:var(--ember)">58%</b></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02-05 SUNSET SEQUENCE ============ -->
+<section class="stage" id="p02-05">
+  <div style="position:absolute;inset:0;background:#080613"></div>
+  <div style="position:absolute;left:56px;right:56px;top:64px">
+    <div class="row between" style="align-items:flex-end">
+      <div><div class="lab">04 — SEQUENCE / 日落时序</div>
+        <h2 class="h1" style="margin-top:10px;font-size:44px">同一天空，八分钟一格。</h2></div>
+      <span class="lab">最红 17:33–17:41 · 日落后 1–9 分钟</span>
+    </div>
+  </div>
+
+  <div class="abs" style="left:56px;right:56px;top:230px">
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:10px">
+      <div><div style="height:296px;background:linear-gradient(180deg,#1A1030,#3A1240 60%,#7A2A45)"></div>
+        <div class="row between" style="margin-top:10px"><span class="mono" style="font-size:11px;color:var(--mist)">17:08</span><span class="lab">+2°</span></div></div>
+      <div><div style="height:296px;background:linear-gradient(180deg,#1A1030,#4A1648 55%,#C4562F)"></div>
+        <div class="row between" style="margin-top:10px"><span class="mono" style="font-size:11px;color:var(--mist)">17:16</span><span class="lab">0°</span></div></div>
+      <div><div style="height:296px;background:linear-gradient(180deg,#180E2C,#5A1A50 50%,#FF5A1F)"></div>
+        <div class="row between" style="margin-top:10px"><span class="mono" style="font-size:11px;color:var(--mist)">17:24</span><span class="lab">−1°</span></div></div>
+      <div><div style="height:296px;background:linear-gradient(180deg,#150C28,#6A1A55 45%,#FF7A32);box-shadow:inset 0 0 0 1px rgba(255,195,107,.6)"></div>
+        <div class="row between" style="margin-top:10px"><span class="mono" style="font-size:11px;color:var(--gold)">17:33</span><span class="lab" style="color:var(--gold)">−2°</span></div></div>
+      <div><div style="height:296px;background:linear-gradient(180deg,#150C28,#7A1A58 45%,#FF9F45);box-shadow:inset 0 0 0 1px rgba(255,195,107,.6)"></div>
+        <div class="row between" style="margin-top:10px"><span class="mono" style="font-size:11px;color:var(--gold)">17:38</span><span class="lab" style="color:var(--gold)">−3°</span></div></div>
+      <div><div style="height:296px;background:linear-gradient(180deg,#12091F,#5A1A50 55%,#C4562F)"></div>
+        <div class="row between" style="margin-top:10px"><span class="mono" style="font-size:11px;color:var(--mist)">17:48</span><span class="lab">−5°</span></div></div>
+      <div><div style="height:296px;background:linear-gradient(180deg,#0C0820,#241441 60%,#5A2A66)"></div>
+        <div class="row between" style="margin-top:10px"><span class="mono" style="font-size:11px;color:var(--mist)">17:58</span><span class="lab">−7°</span></div></div>
+      <div><div style="height:296px;background:linear-gradient(180deg,#08061A,#120E26 60%,#241441)"></div>
+        <div class="row between" style="margin-top:10px"><span class="mono" style="font-size:11px;color:var(--mist)">18:12</span><span class="lab">−11°</span></div></div>
+    </div>
+
+    <div style="position:relative;height:1px;background:var(--line-strong);margin-top:26px">
+      <div style="position:absolute;left:calc(100%/8*3);width:calc(100%/8*2);height:3px;background:var(--gold);top:-1px"></div>
+    </div>
+    <div class="row between" style="margin-top:14px">
+      <span class="lab">金色时刻</span><span class="lab" style="color:var(--gold)">火烧峰值</span><span class="lab">蓝调</span><span class="lab">夜</span>
+    </div>
+
+    <div class="row gap32" style="margin-top:34px">
+      <div><div class="lab">预计颜色</div><div class="mono" style="font-size:18px;margin-top:6px;color:var(--gold)">绯红 · CRIMSON</div></div>
+      <div><div class="lab">最红窗口</div><div class="mono" style="font-size:18px;margin-top:6px">17:33–17:41</div></div>
+      <div><div class="lab">拍摄建议</div><div class="small" style="margin-top:6px">广角收前景，17:28 前架好</div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+window.show=function(id){document.querySelectorAll('.stage').forEach(s=>s.classList.toggle('on',s.id===id));return !!document.getElementById(id)};
+window.show(document.querySelector('.stage').id);
+</script>
+</body></html>
