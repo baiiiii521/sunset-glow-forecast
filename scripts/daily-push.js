@@ -320,7 +320,7 @@ async function ensembleDistribution(opt, fc, aq, epSet, head) {
     const frac = th => allScores.filter(s => s >= th).length / allScores.length;
     return {
       n: allScores.length, p10: q(0.10), p50: q(0.50), p90: q(0.90),
-      p_burn: frac(50), p_big: frac(65), p_huge: frac(80),
+      p_burn: frac(35), p_big: frac(65), p_huge: frac(80),   // 小的分档线是 35（>=35 小烧）
       spread: Math.round(q(0.90) - q(0.10))
     };
   } catch (e) {

@@ -84,7 +84,9 @@ def label_eval(rows):
                 print(f"  {r['date']} {r['city']:8s} 霞分 {s['score']:3d} {s['grade']:6s}  → 实测 {labels[(r['date'], r['city'])]}")
         return
     # 命中率：预报档位 vs 标注档位（标注 0-4 映射到 0/1/2/3/5）
-    MAP = {0: 0, 1: 1, 2: 2, 3: 4, 4: 5}
+    # 标注 0-4 是 5 档，预报是 6 档：3 号标注对应「小到中烧及以上」，
+    # 原来映射到 4 会让「小到中烧(3)」这一档永远无法命中。
+    MAP = {0: 0, 1: 1, 2: 2, 3: 3, 4: 5}
     hit = exact = 0
     for r in joined:
         pl = level_of(r["score"]["score"])
@@ -100,7 +102,8 @@ def label_eval(rows):
     pos = [s for s, y in pairs if y == 1]
     neg = [s for s, y in pairs if y == 0]
     if pos and neg:
-        auc = sum(1 for p in pos for q in neg if p > q) / (len(pos) * len(neg))
+        # 同分计 0.5，否则封顶/同分越多 AUC 被压得越低
+        auc = sum(1.0 if p > q else (0.5 if p == q else 0.0) for p in pos for q in neg) / (len(pos) * len(neg))
         print(f"「有烧(≥小烧)」二分类 AUC = {auc:.2f}（0.5 随机，1 完美）")
 
 

@@ -166,6 +166,13 @@
     return [70 - 40 * (c - 90) / 10, '中高云近全覆盖（' + fmt0(c) + '%）'];
   }
 
+  // v2 专用幕布：中云和高云各占天空比例，直接相加会重复计算重叠部分。
+  // 按随机重叠合成 1-(1-m)(1-h)：60% 高云 + 40% 中云 = 76%，不是 100%。
+  function cCurtainV2(mid, high) {
+    var m = clamp(mid || 0, 0, 100), hh = clamp(high || 0, 0, 100);
+    return cCurtain(0, 100 * (1 - (1 - m / 100) * (1 - hh / 100)));
+  }
+
   // 幕布「受光亮度」因子（Skyglow 光谱，仅用于 v2 霞分，不动 v1 条件分/parity）：
   // 高云(8.6km)光路更干净、更亮，中云(5.2km)次之；AOD 越高越暗。
   // 返回 0.6–1.0 的乘子：纯高云=1.0，纯中云≈0.75，乘在幕布分上。
@@ -304,6 +311,11 @@
     var low = cloudMissing ? 0 : lowRaw;
     var precip = hv(h, 'precipitation', i, 0);
     var prob = hv(h, 'precipitation_probability', i, 0);
+    // Open-Meteo 的 precipitation / precipitation_probability 是「前一小时」的累计，
+    // 标在 17:00 的值覆盖的是 16–17 点。事件在 17:44 时，真正相关的是标在 18:00 的那格。
+    var ip = Math.min(i + 1, (h.time ? h.time.length - 1 : i));
+    var precipV2 = hv(h, 'precipitation', ip, null);
+    var probV2 = hv(h, 'precipitation_probability', ip, null);
     var vis = hv(h, 'visibility', i, null);
     var temp = hv(h, 'temperature_2m', i, null);
     var dew = hv(h, 'dew_point_2m', i, null);
@@ -355,6 +367,7 @@
       gap: cGap(upLowAvg, upTotalAvg),
       gapV2: cloudMissing ? [null, '缺云量数据'] : cGap2(upLowAvg, upMidAvg),
       precip: cPrecip(precip, prob),
+      precipV2: cPrecip(precipV2 === null ? precip : precipV2, probV2 === null ? prob : probV2),
       washed: cWashed(pre3, precip, prob),
       aod: cAod(aod),
       vis: cVis(vis),
@@ -365,7 +378,9 @@
     };
     // v2 幕布「受光亮度」：高云比中云更亮、AOD 越高越暗（Skyglow 光谱），只影响霞分
     var lightNorm = curtainLight(high, mid, aod);
-    comps.curtainV2 = [clamp(comps.curtain[0] * (0.75 + 0.25 * lightNorm), 0, 100), comps.curtain[1]];
+    var baseCurtain = cloudMissing ? null : cCurtainV2(mid, high);
+    if (baseCurtain === null) comps.curtainV2 = [null, '缺云量数据'];
+    else comps.curtainV2 = [clamp(baseCurtain[0] * (0.75 + 0.25 * lightNorm), 0, 100), baseCurtain[1]];
 
     var totalW = 0, totalS = 0;
     WEIGHTS.forEach(function (w) {
@@ -501,15 +516,18 @@
   var AIR_W = [['precip', 10], ['aod', 5], ['vis', 3], ['pm', 3], ['dew', 2], ['wind', 2], ['cape', 2]];
 
   function glow(comps) {
-    var lw = 0, ls = 0, keyMissing = false, keyZero = false;
+    var lw = 0, ls = 0, keyMissing = false, minKey = 100;
     KEY_W.forEach(function (w) {
       var s = comps[w[0]][0];
       if (s === null || s === undefined) { keyMissing = true; return; }   // 缺数据：不假装它通过
-      if (s <= 0) keyZero = true;                                        // 关键项为 0：硬闸，直接归零
+      if (s < minKey) minKey = s;
       lw += w[1];
       ls += w[1] * Math.log(Math.max(s, 1) / 100);
     });
-    var key = keyZero ? 0 : (lw ? 100 * Math.exp(ls / lw) : 0);
+    var key = lw ? 100 * Math.exp(ls / lw) : 0;
+    // 几何平均对单个 0 很宽容（低云 99% 还能给 37 分），但 0 和 99% 之间不该有断崖。
+    // 这里用线性斜坡把「几乎不可能」压下去：s→0 时乘数→0，且处处连续单调。
+    if (minKey < 10) key *= minKey / 10;
     var aw = 0, as = 0;
     AIR_W.forEach(function (w) {
       var s = comps[w[0]][0];
@@ -602,7 +620,7 @@
     destination: destination, solarDeclination: solarDeclination,
     sunsetBearing: sunsetBearing, sunriseBearing: sunriseBearing,
     toEpoch: toEpoch, idxFloor: idxFloor, idxNearest: idxNearest, hv: hv,
-    cCurtain: cCurtain, cLow: cLow, cGap: cGap, cPrecip: cPrecip,
+    cCurtain: cCurtain, cCurtainV2: cCurtainV2, cLow: cLow, cGap: cGap, cPrecip: cPrecip,
     cWashed: cWashed, cGap2: cGap2, cAod: cAod, cVis: cVis, cPm: cPm, cDew: cDew,
     cWind: cWind, cCape: cCape, WEIGHTS: WEIGHTS, evaluate: evaluate,
     LEVELS: LEVELS, LEVEL_BOUNDS: LEVEL_BOUNDS, levelOf: levelOf, levelConf: levelConf,

@@ -113,6 +113,17 @@ function counts(list) {
 
 (async () => {
   const t0 = Date.now();
+  // 预检额度：Open-Meteo 免费层按天/小时限流，额度用光时整轮会全是 429。
+  // 先打一发探针，早失败比跑一小时才发现好。
+  try {
+    const probe = await fetch('https://api.open-meteo.com/v1/forecast?latitude=21.27&longitude=110.36&hourly=cloud_cover&forecast_days=1');
+    if (probe.status === 429) {
+      console.error(`${new Date().toISOString()} 额度已用尽（429），本轮跳过，保留旧榜单不动`);
+      process.exit(2);
+    }
+  } catch (e) {
+    console.error(`${new Date().toISOString()} 预检请求失败：${e.message}，继续尝试`);
+  }
   const world = readWorld();
   buildPop(world);
 
