@@ -8,8 +8,9 @@
 - 用中文沟通；结论要带 `文件:行号` 或可复现步骤。
 - **不改 v1 条件分 `condScore` 的计算路径**：`node test/parity.js` 必须 PASS。算法改动放在 v2 层。
 - **没有标注数据不要调权重、不要调六档切点**：`data/glow-labels.jsonl` 只有 1 条标注。
-- **`SunsetAlgo.FLAGS` 影子开关默认全关**（gapV3 / windowAlign）：打开会改分数分布，
-  必须先跑 `node scripts/replay-gap.js` 给所有者看对比，得到同意才能改默认值。
+- **`SunsetAlgo.FLAGS`（gapV3 / windowAlign）2026-10-25 经所有者确认已全部打开**。
+  改回默认值（回滚）或再次变更，都需要所有者同意；旧口径每天由
+  `capture-replay.js` + `replay-gap.js` 在算力机并行对比（logs/replay.log）。
 - 改了 css / js 之后，提交前跑 `node scripts/stamp-assets.js`。
 - 改了 `algo.js` / `api.js` 之后，跑 `node test/parity.js`、`node test/glow-v2-regress.js` 与 `node scripts/test-rankings-schema.js test/fixtures/rankings.json`。
 - 不把 `data/`、服务器地址、私钥、密码写进仓库（这是公开仓库）。

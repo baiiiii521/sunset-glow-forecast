@@ -86,3 +86,11 @@ node scripts/stamp-assets.js         改 js 后已重新打号，--check OK
 
 小项：tzParts `hour % 24` 兜底（个别引擎忽略 hourCycle 会输出 24 点）、
 快照方位角用 `isFinite` 显式判、HANDOFF §4.5 位置与「该做 #4 已完成」标记、回放表头对齐。
+
+## 六、所有者决定：新口径上线（同日晚）
+
+- 所有者确认 **FLAGS 全部打开**（gapV3 + windowAlign），新口径正式生效；
+  回归测试改为锁定「默认值=全开」，全关金标保留（验证回滚能力）。
+- 旧口径保留每日后台对比：算力机 06:30 `capture-replay.js --n 8` + `replay-gap.js`
+  （约 24 次调用/天），对比表落 `logs/replay.log`，发现异常可一键回滚。
+- 同日执行：推送 GitHub、双机部署、算力机全量跑批（记录见 OPS.local.md）。

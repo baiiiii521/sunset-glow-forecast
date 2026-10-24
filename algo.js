@@ -42,13 +42,13 @@
     return (pyRound(x * p) / p).toFixed(digits);
   }
 
-  /* v2 新口径开关（默认全关 = 影子模式）。这些开关会改变霞分分布，
-   * 没有标注数据不允许直接打开：先跑 scripts/replay-gap.js 看回放对比，
-   * 由所有者决定。打开/关闭只改这一处。
+  /* v2 新口径开关。2026-10-25 所有者确认**全部打开**（正式启用新口径）：
    *  - gapV3：上游缺口改光路几何口径（cGap3，见下方注释）
    *  - windowAlign：多模式成员的云量对齐到同一时刻线性插值（替代
-   *    只给 best_match 在 [-30,-15,0,+15] 里挑最大值的旧口径） */
-  var FLAGS = { gapV3: false, windowAlign: false };
+   *    只给 best_match 在 [-30,-15,0,+15] 里挑最大值的旧口径）
+   * 回滚：把任一项改回 false 即可；旧口径每天仍在 capture-replay + replay-gap
+   * 里并行对比（算力机 cron，结果在 logs/replay.log），随时可以对照。 */
+  var FLAGS = { gapV3: true, windowAlign: true };
 
   function destination(lat, lon, bearingDeg, distKm) {
     var R = 6371.0;

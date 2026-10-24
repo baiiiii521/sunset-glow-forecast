@@ -119,12 +119,12 @@ air  = 降水 / AOD / 能见度 / PM2.5 / 露点差 / 风 / CAPE 的加权平均
 
 - **降水接线**：v2 空气项与封顶已改用 `precipV2`（覆盖事件那一格）；雨洗加成用 `washedV2`
   （霞前 3 小时窗口 i,i-1,i-2，判 0 时不回退 v1 加成）。v1 字段未动。
-- **影子开关 `SunsetAlgo.FLAGS`（默认全关）**：`gapV3`（上游缺口光路几何口径）、
-  `windowAlign`（多成员云量对齐到同一时刻插值，去掉 best_match 挑最大值）。这两个开关
-  会改变分数分布，**打开前必须跑 `scripts/replay-gap.js` 看回放并征得所有者同意**。
-  金标测试（`test/glow-v2-regress.js`）保证：默认值全关被改动会直接 FAIL；
+- **影子开关 `SunsetAlgo.FLAGS`：2026-10-25 所有者确认全部打开**（gapV3 + windowAlign，
+  新口径正式生效）。旧口径每天由 `capture-replay.js` + `replay-gap.js` 在算力机并行对比
+  （logs/replay.log），回滚只需把 FLAGS 改回 false。
+  金标测试（`test/glow-v2-regress.js`）保证：默认值与所有者决定不符会 FAIL；
   全关时 evaluate 层（干燥场景）与 scoreEvent 层（入库回放样例）的分数都与
-  2026-10-24 版逐位一致。
+  2026-10-24 版逐位一致（回滚能力）。
 - 展示层时间已按时区名（`tzParts`）换算，跨夏令时的预报窗口不再差 1 小时；epoch 数学未动。
 - 榜单 build 写盘前过契约校验（`scripts/lib/validate-rankings.js`），违约不落盘、退出码 3
   （额度用尽 2）；单模式回退不再入榜；轻量刷新的分档计数按差量调整。

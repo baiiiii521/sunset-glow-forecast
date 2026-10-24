@@ -54,9 +54,9 @@ function ev(o, ups, dist) {
 
 /* ---------------- 1. 金标（FLAGS 全关 + 干燥） ---------------- */
 const savedFlags = Object.assign({}, A.FLAGS);
-// 先断言默认值全关：否则有人把 algo.js 里的默认开关改成 true，下面的强制赋 false
-// 会让金标照样全绿，AGENTS.md 的硬约定就形同虚设
-check('FLAGS 默认全关（影子开关不许默认打开）', savedFlags.gapV3 === false && savedFlags.windowAlign === false,
+// 默认值必须与所有者的决定一致（2026-10-25 确认全开）。改动默认值而未获所有者同意，
+// 这条会 FAIL；下面的金标在强制全关后运行，验证「关回去 = 旧版逐位一致」的回滚能力
+check('FLAGS 默认与所有者决定一致（全开）', savedFlags.gapV3 === true && savedFlags.windowAlign === true,
   JSON.stringify(savedFlags));
 A.FLAGS.gapV3 = false; A.FLAGS.windowAlign = false;
 try {

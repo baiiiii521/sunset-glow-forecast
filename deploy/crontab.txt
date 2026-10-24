@@ -16,6 +16,10 @@
 # 每小时 :07 快照（20 城，首屏秒开 + 429 兜底）
 7 * * * *   flock -w 600 /tmp/glow-om.lock sh -c 'cd /home/ubuntu/glow && /opt/node22/bin/node scripts/build-snapshots.js 20 >> logs/snapshots.log 2>&1'
 
+# 06:30 旧口径后台对比：采 8 城原始数据并输出新旧四口径对比表（约 24 次调用/天）
+# 新口径已上线（FLAGS 全开），这条用于持续监督新算法，发现异常可随时回滚
+30 6 * * *  flock -w 600 /tmp/glow-om.lock sh -c 'cd /home/ubuntu/glow && /opt/node22/bin/node scripts/capture-replay.js --n 8 >> logs/replay.log 2>&1 && /opt/node22/bin/node scripts/replay-gap.js >> logs/replay.log 2>&1'
+
 # 跑完推送站点机：scp 到 *.tmp 再 ssh mv 原子替换（或 rsync --delay-updates），
 # 保证前端在两个 JSON 先后到达的窗口里读不到半份。具体命令见 OPS.local.md。
 
