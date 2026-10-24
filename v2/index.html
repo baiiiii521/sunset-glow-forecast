@@ -341,8 +341,8 @@
   <a href="city.html" data-k="city"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 10c0 6-9 12-9 12S3 16 3 10a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>城市</span></a>
 </nav>
 
-<!-- 启用服务端缓存代理后改成 '/om'（见 deploy/README.md） -->
-<script>window.GLOW_OM_BASE = "";</script>
+<!-- 走自有 nginx 缓存代理（deploy/README.md）；直连可改回空串 -->
+<script>window.GLOW_OM_BASE = "/om";</script>
 <script src="../algo.js?v=20261024a"></script>
 <script src="../api.js?v=20261024a"></script>
 <script src="assets/js/glow.js?v=20261024a"></script>
