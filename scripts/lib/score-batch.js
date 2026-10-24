@@ -15,7 +15,8 @@ const CLOUD = API.CLOUD_VARS.join(',');
 
 // Open-Meteo 免费额度按「坐标数」计调用：一次 24 坐标 = 24 次调用。
 // 免费档约 600 次/分钟，这里压到 420 次/分钟留余量。
-const RATE_PER_MIN = Number(process.env.GLOW_RATE_PER_MIN || 420);
+// 免费档约 600/分钟、5,000/小时、10,000/天；按小时折算 ≈83/分钟，这里压到 70 留余量。
+const RATE_PER_MIN = Number(process.env.GLOW_RATE_PER_MIN || 70);
 const _calls = [];
 async function throttle(nCalls) {
   for (;;) {
@@ -112,8 +113,14 @@ async function scoreCities(cities, opts = {}) {
       const { coords, map } = expand(g);
       let fc, aq;
       try {
-        await throttle(coords.length * 2);   // 预报 + 空气质量 各 n 次
-        [fc, aq] = await Promise.all([fetchBatchForecast(coords, opts.days), fetchBatchAQ(coords, opts.days)]);
+        // 粗筛默认跳过空气质量：省一半调用，A.evaluate 对 aq=null 会按中性处理
+        const wantAQ = opts.skipAQ === false;
+        await throttle(coords.length * (wantAQ ? 2 : 1));
+        const [f0, a0] = await Promise.all([
+          fetchBatchForecast(coords, opts.days),
+          wantAQ ? fetchBatchAQ(coords, opts.days) : Promise.resolve([])
+        ]);
+        fc = f0; aq = a0;
       } catch (e) {
         for (const m of map) results.push({ city: m.city, failed: true, error: String(e.message || e) });
         continue;
