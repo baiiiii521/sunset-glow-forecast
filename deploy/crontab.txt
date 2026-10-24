@@ -2,10 +2,10 @@
 # 路径按服务器实际目录改；node 用绝对路径（cron 的 PATH 很短）
 
 # 全量：每天 04:00（主机本地时间；站点机是 UTC+7），池 = 30 世界大城市 + 500 中国城市
-0 4 * * *  cd /var/www/glow && /usr/bin/node scripts/build-rankings-v3.js --global 30 --china 500 --top 30 --out data/rankings.json >> logs/rankings.log 2>&1
+0 4 * * *  cd /var/www/glow && /usr/bin/node scripts/build-rankings-v3.js --global 30 --china 500 --top 30 --out data/rankings.json >> logs/rankings.log 2>&1 && /usr/bin/node scripts/test-rankings-schema.js data/rankings.json >> logs/rankings.log 2>&1
 
 # 轻量刷新：每天 15:00，只重算在榜的城市（不改变参评池，不改 computedAt）
-0 15 * * * cd /var/www/glow && /usr/bin/node scripts/build-rankings-v3.js --refresh 15 --out data/rankings.json >> logs/rankings.log 2>&1
+0 15 * * * cd /var/www/glow && /usr/bin/node scripts/build-rankings-v3.js --refresh 15 --out data/rankings.json >> logs/rankings.log 2>&1 && /usr/bin/node scripts/test-rankings-schema.js data/rankings.json >> logs/rankings.log 2>&1
 
 # 快照：每小时 :07，20 城（首屏秒开 + 429 兜底）
 7 * * * *  cd /var/www/glow && /usr/bin/node scripts/build-snapshots.js 20 >> logs/snapshots.log 2>&1

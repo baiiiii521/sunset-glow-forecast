@@ -13,7 +13,8 @@
     lat: Number.isFinite(parseFloat(q.get('lat'))) ? parseFloat(q.get('lat')) : 10.79,
     lon: Number.isFinite(parseFloat(q.get('lon'))) ? parseFloat(q.get('lon')) : 106.75
   };
-  var state = { week: null, idx: +(q.get('d') || 0), scope: 'all', data: null };
+  var _d = parseInt(q.get('d'), 10);
+  var state = { week: null, idx: Number.isInteger(_d) && _d >= 0 ? _d : 0, scope: 'all', data: null };
   var gradeColor = function (l) { return 'var(--lv' + l + ')'; };
 
   /* ---------- 头部 ---------- */
@@ -191,9 +192,11 @@
         var when = d.computedAt ? new Date(d.computedAt) : null;
         var stamp = when ? ((when.getMonth() + 1) + '-' + when.getDate() + ' ' +
           G.pad(when.getHours()) + ':' + G.pad(when.getMinutes())) : '';
+        var stale = when && (Date.now() - when.getTime() > 36 * 3600e3);
         if (rec) {
-          el.className = 'board-badge in';
-          el.textContent = '今日霞榜在榜 · 第 ' + rank + ' 名 · ' + rec.score + ' 分 · 榜单 ' + stamp;
+          el.className = 'board-badge in' + (stale ? ' stale' : '');
+          el.textContent = (stale ? '榜单已过期（生成于 ' + stamp + '）' : '今日霞榜在榜') +
+            ' · 第 ' + rank + ' 名 · ' + rec.score + ' 分';
         } else {
           el.className = 'board-badge live';
           el.textContent = '该城市不在今日霞榜 · 已按实时数据现算（取数 ' +
@@ -208,7 +211,7 @@
   /* ---------- 启动 ---------- */
   /* 首屏用每小时快照先画一版，接口失败时它就是兜底 */
   function paintFromSnapshot() {
-    G.snapshotFor(place.name, place.lat).then(function (snap) {
+    G.snapshotFor(place.name, place.lat, place.lon).then(function (snap) {
       if (!snap || state.data) return;
       var r = snap.row, lv = r.level != null ? r.level : G.band(r.score);
       var ageH = (Date.now() - snap.computedAt) / 3600e3;
@@ -236,7 +239,7 @@
     }).catch(function (e) {
       console.error(e);
       G.notice('接口限流或超时，先显示每小时快照，完整明细稍后重试', 'warn');
-      G.snapshotFor(place.name, place.lat).then(function (snap) {
+      G.snapshotFor(place.name, place.lat, place.lon).then(function (snap) {
         if (!snap) { $('#tdCap').textContent = '取数失败，请稍后重试'; return; }
         var r = snap.row, lv = r.level != null ? r.level : G.band(r.score);
         var ageH2 = (Date.now() - snap.computedAt) / 3600e3;

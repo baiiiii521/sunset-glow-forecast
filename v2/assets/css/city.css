@@ -76,3 +76,4 @@
 .board-badge.in{color:var(--gold);border-color:rgba(255,195,107,.35);background:rgba(255,195,107,.08)}
 .board-badge.live{color:var(--mist)}
 @media (max-width:767px){ .board-badge{font-size:9.5px;line-height:1.5;max-width:96%} }
+.board-badge.stale{color:var(--gold);border-color:rgba(255,195,107,.4);background:rgba(255,195,107,.08)}

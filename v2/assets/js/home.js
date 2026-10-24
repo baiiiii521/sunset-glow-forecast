@@ -315,7 +315,8 @@
       });
     });
     $('#pfRows').innerHTML = html;
-    $('#pfLegend').innerHTML = [
+    var rep = ev.repModel ? '<div class="row gap12 center" style="margin-top:6px"><span class="small" style="font-size:12px;color:var(--veil)">分项取自代表模式：' + esc(ev.repModel) + '</span></div>' : '';
+    $('#pfLegend').innerHTML = rep + [
       ['门控 0.5 / 0.3 / 0.2 · 几何加权', 'var(--ember)'],
       ['空气项 ×0.7–1.0 调制', 'var(--mist)'],
       ['缺数据 = 退出加权', 'dash']
@@ -509,6 +510,15 @@
     $('#pfRows').innerHTML = '';
     $('#events').innerHTML = '';
     $('#weekGrid').innerHTML = '';
+    $('#weekNote').textContent = '取数中…';
+    $('#weekCity').href = '#';
+    $('#heroWindow').textContent = '--:--–--:--';
+    $('#heroSunset').textContent = '--:--';
+    $('#heroBearing').textContent = '---°';
+    $('#heroBar').style.width = '0';
+    $('#sunPath').innerHTML = '';
+    $('#models').innerHTML = '';
+    $('#tlBars').innerHTML = '';
     $('#searchLabel').textContent = place.short || place.name;
     load(place, seq);
     FORECAST.weeklyCached(place.lat, place.lon, 7).then(function (w) {
@@ -549,6 +559,13 @@
     $('#searchLabel').textContent = place.short || place.name;
     return FORECAST.fourEvents(place.lat, place.lon).then(function (d) {
       if (seq != null && seq !== placeSeq) return;   // 迟到的旧地点，丢弃
+      if (!d.events || !d.events.length) {
+        $('#heroVerdict').firstChild.textContent = '这段时间没有可评分的场次（极昼/极夜或无日落）。';
+        $('#heroWhy').textContent = '';
+        $('#heroScore').textContent = '--';
+        $('#heroGrade').textContent = '无场次';
+        return;
+      }
       state.data = d;
       var now = Date.now(), first = 0;
       for (var i = 0; i < d.events.length; i++) { if (d.events[i].epoch > now - 15 * 60000) { first = i; break; } }
@@ -559,9 +576,10 @@
       renderHero(); renderEvents(); renderGates(); buildTimeline(); renderProfile(d.events[first]);
       syncURL();
     }).catch(function (err) {
+      if (seq != null && seq !== placeSeq) return;   // 迟到的旧地点失败，忽略
       console.error(err);
       G.notice('接口限流或超时，先显示每小时快照', 'warn');
-      G.snapshotFor(place.name, place.lat).then(function (snap) {
+      G.snapshotFor(place.name, place.lat, place.lon).then(function (snap) {
         if (!snap) {
           $('#heroVerdict').firstChild.textContent = '今天取数失败。';
           $('#heroWhy').textContent = (err && err.message) || '请稍后重试';

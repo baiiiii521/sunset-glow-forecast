@@ -37,30 +37,52 @@
   // Open-Meteo 免费层按分钟限流（429）：有兜底代理时立刻切换，没有才退避重试（4s、12s）
   var RETRY_429 = [4000, 12000];
 
-  function fetchJSON(url, timeoutMs, attempt) {
-    attempt = attempt || 0;
-    // 只有第一次尝试才考虑兜底，避免来回换
-    var alt = (attempt === 0 && fallbackOf(url)) || null;
+  // 直连被限流/超时后，60 秒内直接走代理（避免每个请求都先撞一次 429）
+  var _directDownUntil = 0;
+
+  function rawFetch(url, ms) {
     var ctrl = new AbortController();
-    var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || 30000);
+    var timer = setTimeout(function () { ctrl.abort(); }, ms);
     return fetch(url, { signal: ctrl.signal }).then(function (r) {
       clearTimeout(timer);
-      if (r.status === 429) {
-        // 直连被限流：立刻换自有代理，不浪费时间重试
-        if (alt) return fetchJSON(alt, timeoutMs, 1);
-        if (attempt < RETRY_429.length) {
-          return new Promise(function (res) { setTimeout(res, RETRY_429[attempt]); })
-            .then(function () { return fetchJSON(url, timeoutMs, attempt + 1); });
-        }
-      }
+      if (r.status === 429) { var e = new Error('RATE_LIMIT'); e.code = 429; throw e; }
       if (!r.ok) throw new Error('HTTP ' + r.status + '（' + url.split('?')[0] + '）');
       return r.json();
     }).catch(function (e) {
       clearTimeout(timer);
-      if (alt && e && e.name !== 'AbortError') return fetchJSON(alt, timeoutMs, 1);
-      if (e.name === 'AbortError') throw new Error('请求超时');
+      if (e.name === 'AbortError') { var t = new Error('请求超时'); t.code = 'TIMEOUT'; throw t; }
       throw e;
     });
+  }
+
+  // 单次请求：直连优先（8s 超时），失败或限流立刻换代理；代理也只试一次。
+  function fetchJSON(url, timeoutMs, attempt) {
+    attempt = attempt || 0;
+    var alt = fallbackOf(url);
+    var DIRECT_MS = Math.min(timeoutMs || 30000, 8000);
+    var now = Date.now();
+    var directFirst = !(alt && now < _directDownUntil);
+
+    function viaProxy() {
+      if (!alt) return Promise.reject(new Error('无可用代理'));
+      return rawFetch(alt, timeoutMs || 30000);
+    }
+    function viaDirect() {
+      return rawFetch(url, DIRECT_MS).catch(function (e) {
+        if (alt) {
+          // 直连不可用：60 秒内后续请求直接走代理
+          _directDownUntil = Date.now() + 60000;
+          return viaProxy();
+        }
+        // 没有代理时才退避重试
+        if ((e.code === 429 || e.code === 'TIMEOUT') && attempt < RETRY_429.length) {
+          return new Promise(function (res) { setTimeout(res, RETRY_429[attempt]); })
+            .then(function () { return fetchJSON(url, timeoutMs, attempt + 1); });
+        }
+        throw e;
+      });
+    }
+    return directFirst ? viaDirect() : viaProxy();
   }
 
   /* ---------------- 时间工具（全部用真实 epoch 比较） ---------------- */

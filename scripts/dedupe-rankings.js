@@ -18,15 +18,13 @@ const haversine = (a, b) => {
 };
 
 function clean(list) {
-  const seen = new Set();
   const out = [];
   for (const r of list) {
     if (!r || !r.city) continue;
-    // 粗分（精算失败回退的）不进榜：口径不同，会系统性偏高
+    // 粗分/单模式（精算失败回退的）不进榜：口径不同，会系统性偏高
     if (!r.models || !r.models.length) continue;
-    const k = norm(r.city.name) + '|' + Number(r.city.lat).toFixed(1);
-    if (seen.has(k)) continue;
-    seen.add(k);
+    // 与 build-rankings-v3 同规则：同名且 20km 内视为同一城
+    if (out.some((k) => norm(k.city.name) === norm(r.city.name) && haversine(k.city, r.city) < 20)) continue;
     out.push(r);
   }
   out.sort((a, b) => b.score - a.score);

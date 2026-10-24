@@ -179,7 +179,8 @@ function counts(list) {
   console.error(`${new Date().toISOString()} 精算完成：全球 ${fineG.length} / 中国 ${fineC.length}`);
 
   const byScore = (list) => list
-    .filter((r) => !r.coarseOnly)              // 粗分不参与排名（口径不同，会系统性偏高）
+    .filter((r) => !r.coarseOnly)                       // 粗分不参与排名
+    .filter((r) => r.ensemble && r.ensemble.members)    // 集合失败退化成单模式的也不进榜
     .sort((a, b) => b.score - a.score);
   const boardG = byScore(mergeSatellites(fineG));
   const boardC = byScore(mergeSatellites(fineC));

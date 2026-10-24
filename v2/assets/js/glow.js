@@ -222,6 +222,8 @@ window.GLOW = (function () {
   function snapshotFor(name, lat, lon) {
     return loadSnapshots().then(function (j) {
       var c = j.cities || {};
+      // 没有合法经度就宁可不用快照，也不要把别的城市安到当前位置上
+      if (!isFinite(lon) || !isFinite(lat)) return null;
       var k = name + '|' + Number(lat).toFixed(2) + '|' + Number(lon).toFixed(2);
       if (c[k]) return { row: c[k], computedAt: j.computedAt };
       var best = null;

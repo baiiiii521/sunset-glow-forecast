@@ -33,8 +33,14 @@ window.FORECAST = (function () {
           var ssEpoch = daily.sunset && daily.sunset[i] ? A.toEpoch(daily.sunset[i], offset) : null;
           var srEpoch = daily.sunrise && daily.sunrise[i] ? A.toEpoch(daily.sunrise[i], offset) : null;
           var ss = null, sr = null;
-          if (ssEpoch != null) { try { ss = API.scoreEvent(fc, aq, ssEpoch, bearings[i].ss, offset, ens, ep.upIdx[1], ep.dist); } catch (e) {} }
-          if (srEpoch != null) { try { sr = API.scoreEvent(fc, aq, srEpoch, bearings[i].sr, offset, ens, ep.upIdx[0], ep.dist); } catch (e) {} }
+          if (ssEpoch != null) {
+            try { ss = API.scoreEvent(fc, aq, ssEpoch, bearings[i].ss, offset, ens, ep.upIdx[1], ep.dist); }
+            catch (e) { console.error('晚霞评分失败', d, e && e.message); }
+          }
+          if (srEpoch != null) {
+            try { sr = API.scoreEvent(fc, aq, srEpoch, bearings[i].sr, offset, ens, ep.upIdx[0], ep.dist); }
+            catch (e) { console.error('朝霞评分失败', d, e && e.message); }
+          }
           if (ss) { ss.epoch = ssEpoch; ss.bearing = bearings[i].ss; ss.type = 'sunset'; }
           if (sr) { sr.epoch = srEpoch; sr.bearing = bearings[i].sr; sr.type = 'sunrise'; }
           return { date: d, sunset: ss, sunrise: sr };

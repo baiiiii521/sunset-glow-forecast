@@ -98,15 +98,15 @@ Open-Meteo 按 IP 计费，所以第二台机器等于多一份 10,000/天。手
 ## 八、定时任务（已生效）
 
 ```cron
-# 全量：每天 04:00 低峰，池 = 30 个世界大城市 + 500 个中国城市
-0 4 * * *  build-rankings-v3.js --global 30 --china 500 --top 30
+# 04:00 全量跑在算力机（UTC+8，额度独立），跑完 scp 推到站点机的 data 目录
+0 4 * * *  /home/ubuntu/glow/daily.sh        # 内部：build-rankings-v3 --global 30 --china 500 --top 30 + schema 测试 + scp
 
-# 轻量刷新：每天 15:00，只重算在榜的 30 城（约 330 次调用）
-0 15 * * * build-rankings-v3.js --refresh 15
-
-# 快照：每小时 :07，20 城
+# 站点机（UTC+7）：15:00 只重算在榜城市；每小时刷新快照
+0 15 * * * build-rankings-v3.js --refresh 15 --out data/rankings.json && test-rankings-schema.js data/rankings.json
 7 * * * *  build-snapshots.js 20
 ```
+
+注意：cron 用的是主机本地时间。站点机 UTC+7 的 15:00 = 北京 16:00；要按北京时间对齐请写 `CRON_TZ=Asia/Shanghai`。
 
 ## 九、卫星城合并规则
 
