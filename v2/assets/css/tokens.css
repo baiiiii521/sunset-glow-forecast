@@ -1,0 +1,51 @@
+/* ============================================================
+   GLOW · tokens.css
+   所有设计 token 的唯一来源（见 docs/design/05-design-system.md）
+   ============================================================ */
+:root{
+  /* surface */
+  --ink-900:#06050E; --ink-800:#0B0918; --ink-700:#120E26;
+  --twilight-600:#1B1140; --twilight-500:#2A1A55;
+
+  /* ink */
+  --cream:#F6EFE6; --mist:rgba(246,239,230,.74); --veil:rgba(246,239,230,.56);
+  --line:rgba(246,239,230,.10); --line-strong:rgba(246,239,230,.22);
+
+  /* brand */
+  --ember:#FF5A1F; --gold:#FFC36B; --rose:#FF7E8B; --plasma:#B14BFF;
+
+  /* grade 六级 */
+  --lv0:#6E6A80; --lv1:#8C7BB8; --lv2:#FF7E8B;
+  --lv3:#FF9F45; --lv4:#FF5A1F; --lv5:#FFC36B;
+
+  /* type */
+  --font-display:'Noto Serif SC Local','Noto Serif SC','Songti SC',serif;
+  --font-body:system-ui,-apple-system,'PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif;
+  --font-mono:'JetBrains Mono Local','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+
+  --fs-display:clamp(64px,9vw,116px);
+  --fs-h1:clamp(34px,4vw,52px);
+  --fs-h2:clamp(26px,2.6vw,34px);
+  --fs-body:clamp(15px,1.05vw,17px);
+  --fs-small:14px; --fs-label:11.5px;
+  --fs-data-xl:clamp(96px,13vw,178px);
+  --fs-data-l:clamp(30px,3vw,44px);
+
+  /* space */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
+  --sp-6:32px; --sp-7:48px; --sp-8:64px; --sp-9:96px;
+  --gutter:56px; --max-w:1440px;
+  --section-y:clamp(72px,9vh,130px);
+
+  /* shape & motion */
+  --radius:0; --radius-pill:999px;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --dur-fast:120ms; --dur-base:240ms; --dur-slow:700ms; --dur-sky:900ms;
+
+  --z-sky:0; --z-content:10; --z-mast:50; --z-drawer:80; --z-modal:90;
+
+  --mx:0; --my:0;          /* 鼠标视差，由 JS 更新 */
+}
+
+@media (max-width:1023px){ :root{ --gutter:32px; } }
+@media (max-width:720px){ :root{ --gutter:20px; --section-y:64px; } }

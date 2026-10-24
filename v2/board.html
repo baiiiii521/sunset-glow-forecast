@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>霞榜 · 今天哪里最可能烧</title>
+<meta name="description" content="按本地日落逐城计算的霞榜：全球榜、中国榜、等级分布与城市检索。">
+<meta name="theme-color" content="#06050E">
+<link rel="stylesheet" href="assets/css/fonts.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/tokens.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/base.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/p01.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/board.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261024a" media="(max-width:767px)">
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="mast" id="mast">
+  <a class="brand" href="index.html" aria-label="GLOW 首页">
+    <span class="stamp" aria-hidden="true">霞</span>
+    <span class="brand-txt"><b>GLOW</b><span>火烧云预报</span></span>
+  </a>
+  <nav class="nav" aria-label="主导航">
+    <a href="index.html"><i>01</i>今晚</a>
+    <a href="board.html" aria-current="page"><i>02</i>霞榜</a>
+    <a href="index.html#brief"><i>03</i>算法</a>
+  </nav>
+  <div class="mast-actions">
+    <button class="search-trigger" id="searchBtn" type="button" aria-label="搜索城市">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <span id="searchLabel">城市 / 拼音 / 坐标</span><kbd>⌘K</kbd>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="board-head">
+    <div class="wrap">
+      <div class="lab">BOARD / 霞榜</div>
+      <h1 class="display" style="margin-top:14px">今天，<br>哪里最可能烧。</h1>
+      <div class="row between" style="margin-top:26px;flex-wrap:wrap;gap:16px;align-items:flex-end">
+        <div class="scope-switch" id="scopeSwitch" role="tablist">
+          <button class="sw on" data-scope="global" role="tab" aria-selected="true">全球</button>
+          <button class="sw" data-scope="china" role="tab" aria-selected="false">中国</button>
+        </div>
+        <div class="lab" id="boardMeta">加载中…</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 地图 + 榜单 -->
+  <div class="stale-banner" id="staleBanner" hidden></div>
+
+  <section class="section" id="mapPanel" aria-labelledby="mpTitle">
+    <div class="wrap">
+      <div class="map-wrap">
+        <div class="map-side">
+          <div class="lab" id="mpTitle">TOP 10 · 全球</div>
+          <div class="map-list" id="mapList"></div>
+        </div>
+        <div class="map-canvas" id="mapCanvas">
+          <svg id="worldSvg" viewBox="0 0 1440 720" preserveAspectRatio="xMidYMid meet" aria-label="世界地图与城市点位" role="img"></svg>
+          <svg id="chinaSvg" viewBox="0 0 1000 938" preserveAspectRatio="xMidYMid meet" aria-label="中国地图（含台湾岛、南海诸岛、九段线）与城市点位" role="img" hidden></svg>
+          <div class="map-tip" id="mapTip" hidden></div>
+          <div class="map-hint" aria-hidden="true">点按城市看详情</div>
+          <div class="map-legend"><span><i style="background:var(--lv5)"></i>大烧</span><span><i style="background:var(--lv4)"></i>中到大烧</span><span><i style="background:var(--lv3)"></i>小到中烧</span><span><i style="background:var(--lv2)"></i>小烧</span><span><i style="background:var(--lv1)"></i>微烧</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 双榜 -->
+  <section class="section" id="dual" aria-labelledby="dlTitle">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="lab">02 — DUAL / 双榜</div><h2 class="h1" id="dlTitle" style="margin-top:12px">同一时刻，两个尺度。</h2></div>
+        <p class="body lede">左边看自己国家，右边看世界。分数不可跨榜直接比——每城都按本地日落算。</p>
+      </div>
+      <div class="dual-grid">
+        <div><div class="row between" style="border-bottom:1px solid var(--line-strong);padding-bottom:10px"><span class="lab">中国 TOP 5</span><span class="lab" id="cnStat"></span></div><div id="cnList"></div></div>
+        <div><div class="row between" style="border-bottom:1px solid var(--line-strong);padding-bottom:10px"><span class="lab">全球 TOP 5</span><span class="lab" id="glStat"></span></div><div id="glList"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 分布 -->
+  <section class="section" id="dist" aria-labelledby="dsTitle">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="lab">03 — DISTRIBUTION / 分布</div><h2 class="h1" id="dsTitle" style="margin-top:12px">今天有多少城市有戏。</h2></div>
+        <p class="body lede">按等级统计计入榜单的城市数。大多数日子，无烧才是常态。</p>
+      </div>
+      <div class="dist" id="distBox"></div>
+    </div>
+  </section>
+
+  <!-- 城市索引 -->
+  <section class="section" id="search" aria-labelledby="scTitle">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="lab">04 — INDEX / 索引</div><h2 class="h1" id="scTitle" style="margin-top:12px">找不到你的城市？</h2></div>
+        <p class="body lede">输入中文名或省份，从 2,850 个中国城市点里挑一个，直接进七天预报。</p>
+      </div>
+      <div class="search-box">
+        <input id="q2" type="search" placeholder="例如：南阳 / 河南 / 成都" autocomplete="off" aria-label="搜索中国城市">
+        <div class="search-results" id="searchResults"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="cols">
+      <div><div class="lab">DATA / 数据</div><div class="col gap8 small"><span>Open-Meteo · ECMWF / GFS / ICON</span><span>城市点：ok_geo.csv（WGS-84）</span></div></div>
+      <div><div class="lab">ALGORITHM / 算法</div><div class="col gap8 small"><span>霞分 v2.2 · 每城按本地日落</span><span>每日 15:00 预计算</span></div></div>
+      <div><div class="lab">POLICY / 声明</div><div class="col gap8 small"><span>纯静态 · 不收集个人数据</span><span>启发式算法，不是官方预报</span></div></div>
+    </div>
+    <div class="sig"><div class="big">藏一片天色</div><div class="col gap8" style="align-items:flex-end"><span class="lab">© 2026 GLOW · MIT</span></div></div>
+  </div>
+</footer>
+
+
+<div class="search-panel" id="searchPanel" hidden>
+  <div class="sp-back"></div>
+  <div class="sp-box" role="dialog" aria-modal="true" aria-label="搜索城市">
+    <div class="sp-head">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="spInput" type="search" placeholder="城市名 / 拼音 / 省份，例如 河内、胡志明、Nha Trang" autocomplete="off" aria-label="搜索城市">
+      <kbd>ESC</kbd>
+    </div>
+    <div class="sp-results" id="spResults"></div>
+    <div class="sp-foot"><span class="lab">中国 2,850 城 + 全球 2,024 城</span><button type="button" class="sp-locate" id="spLocate">用我的位置</button></div>
+  </div>
+</div>
+
+<nav class="tabbar" id="tabbar" aria-label="移动端导航">
+  <a href="index.html" data-k="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>今晚</span></a>
+  <a href="board.html" data-k="board"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg><span>霞榜</span></a>
+  <a href="city.html" data-k="city"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 10c0 6-9 12-9 12S3 16 3 10a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>城市</span></a>
+</nav>
+
+<!-- 启用服务端缓存代理后改成 '/om'（见 deploy/README.md） -->
+<script>window.GLOW_OM_BASE = "";</script>
+<script src="../algo.js?v=20261024a"></script>
+<script src="../api.js?v=20261024a"></script>
+<script src="assets/js/glow.js?v=20261024a"></script>
+<script src="assets/js/board.js?v=20261024a"></script>
+</body>
+</html>

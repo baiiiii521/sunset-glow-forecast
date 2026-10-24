@@ -1,0 +1,8 @@
+# 霞（GLOW）定时任务 —— 粘到 `crontab -e`
+# 路径按服务器实际目录改；node 用绝对路径（cron 的 PATH 很短）
+
+# 每天 15:00（北京时间）重算霞榜：粗筛 500 城 → 精算 60 城 → 取前十
+0 15 * * * cd /var/www/glow && /usr/bin/node scripts/build-rankings-v3.js --global 300 --china 200 --top 30 >> logs/rankings.log 2>&1
+
+# 每小时刷新热门城市快照（免费额度下 20 城；付费档可改 200）
+7 * * * * cd /var/www/glow && /usr/bin/node scripts/build-snapshots.js 20 >> logs/snapshots.log 2>&1

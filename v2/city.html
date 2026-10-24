@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>城市 · 七天预报 · 霞</title>
+<meta name="description" content="一个城市的七天火烧云预报：每天晚霞与朝霞分开算，附云层剖面与模式分歧。">
+<meta name="theme-color" content="#06050E">
+<link rel="stylesheet" href="assets/css/fonts.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/tokens.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/base.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/p01.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/city.css?v=20261024a">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261024a" media="(max-width:767px)">
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="mast" id="mast">
+  <a class="brand" href="index.html" aria-label="GLOW 首页">
+    <span class="stamp" aria-hidden="true">霞</span>
+    <span class="brand-txt"><b>GLOW</b><span>火烧云预报</span></span>
+  </a>
+  <nav class="nav" aria-label="主导航">
+    <a href="index.html"><i>01</i>今晚</a>
+    <a href="board.html"><i>02</i>霞榜</a>
+    <a href="index.html#brief"><i>03</i>算法</a>
+  </nav>
+  <div class="mast-actions">
+<button class="search-trigger" id="searchBtn" type="button" aria-label="搜索城市">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <span id="searchLabel">城市 / 拼音 / 坐标</span><kbd>⌘K</kbd>
+    </button>
+    <button class="icon-btn" type="button" aria-label="收藏" id="favBtn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>
+    </button>
+    <button class="icon-btn" type="button" aria-label="分享" id="shareBtn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12v7h16v-7"/><path d="M12 16V3"/><path d="M8 7l4-4 4 4"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- 城市头 -->
+  <section class="city-head">
+    <div class="sky sky--thin" aria-hidden="true">
+      <img class="sky-img" id="skyA" src="assets/img/sky/H01_hero_sky_L3_dusk_v01.jpg" alt="">
+      <img class="sky-img" id="skyB" data-stack alt="">
+    </div>
+    <div class="wrap city-head-in">
+      <a class="back" href="index.html">← 回到今晚</a>
+      <h1 class="display city-name" id="cityName">—</h1>
+      <div class="city-meta" id="cityMeta"></div>
+      <div class="board-badge" id="boardBadge">正在核对今日霞榜…</div>
+      <div class="city-tabs" role="tablist" id="cityScope">
+        <button class="ctab on" data-k="all" role="tab" aria-selected="true">七天总览</button>
+        <button class="ctab" data-k="sunset" role="tab" aria-selected="false">只看晚霞</button>
+        <button class="ctab" data-k="sunrise" role="tab" aria-selected="false">只看朝霞</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 今天 -->
+  <section class="section" id="today" aria-labelledby="tdTitle">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="lab">01 — TODAY / 今天</div><h2 class="h1" id="tdTitle" style="margin-top:12px">今天这一场</h2></div>
+        <p class="body lede" id="tdCap">—</p>
+      </div>
+      <div class="today-row" id="todayRow"></div>
+    </div>
+  </section>
+
+  <!-- 七天矩阵 -->
+  <section class="section" id="week" aria-labelledby="wkTitle">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="lab">02 — SEVEN DAYS / 七日</div><h2 class="h1" id="wkTitle" style="margin-top:12px">七天，一天一行。</h2></div>
+        <p class="body lede">格子颜色=等级，数字=霞分。点一格看那天的云层剖面。</p>
+      </div>
+      <div class="matrix" id="matrix"></div>
+      <div class="legend-row" id="matrixLegend"></div>
+    </div>
+  </section>
+
+  <!-- 云层剖面 -->
+  <section class="section" id="deck" aria-labelledby="dkTitle">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="lab">03 — CLOUD DECK / 云层</div><h2 class="h1" id="dkTitle" style="margin-top:12px">三层云，各自在挡什么。</h2></div>
+        <p class="body lede" id="dkCap">—</p>
+      </div>
+      <div class="deck" id="deckBox">
+        <svg id="deckSvg" viewBox="0 0 1000 260" preserveAspectRatio="none" role="img" aria-label="云量随时间变化"></svg>
+        <div class="deck-legend">
+          <span><i style="background:rgba(246,239,230,.55)"></i>低云（墙）</span>
+          <span><i style="background:#FF9F45"></i>中云（幕布）</span>
+          <span><i style="background:#FF7E8B"></i>高云（幕布）</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 模式分歧 -->
+  <section class="section" id="models" aria-labelledby="mdTitle">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><div class="lab">04 — CONSENSUS / 模式</div><h2 class="h1" id="mdTitle" style="margin-top:12px">四家说了算，分歧也是信息。</h2></div>
+        <p class="body lede">同一场日落，四个数值模式各算一遍。综合模式权重 ×3。</p>
+      </div>
+      <div class="models-box" id="modelsBox"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="cols">
+      <div><div class="lab">DATA / 数据</div><div class="col gap8 small"><span>Open-Meteo · ECMWF / GFS / ICON</span><span>CAMS 气溶胶 · PM2.5</span></div></div>
+      <div><div class="lab">ALGORITHM / 算法</div><div class="col gap8 small"><span>霞分 v2.2 · 几何门控 × 空气调制</span><span>六档：无烧 → 大烧</span></div></div>
+      <div><div class="lab">POLICY / 声明</div><div class="col gap8 small"><span>纯静态 · 查询在浏览器端发出</span><span>启发式算法，不是官方预报</span></div></div>
+    </div>
+    <div class="sig"><div class="big">藏一片天色</div><div class="col gap8" style="align-items:flex-end"><span class="lab">© 2026 GLOW · MIT</span></div></div>
+  </div>
+</footer>
+
+
+<div class="search-panel" id="searchPanel" hidden>
+  <div class="sp-back"></div>
+  <div class="sp-box" role="dialog" aria-modal="true" aria-label="搜索城市">
+    <div class="sp-head">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="spInput" type="search" placeholder="城市名 / 拼音 / 省份，例如 河内、胡志明、Nha Trang" autocomplete="off" aria-label="搜索城市">
+      <kbd>ESC</kbd>
+    </div>
+    <div class="sp-results" id="spResults"></div>
+    <div class="sp-foot"><span class="lab">中国 2,850 城 + 全球 2,024 城</span><button type="button" class="sp-locate" id="spLocate">用我的位置</button></div>
+  </div>
+</div>
+
+<nav class="tabbar" id="tabbar" aria-label="移动端导航">
+  <a href="index.html" data-k="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>今晚</span></a>
+  <a href="board.html" data-k="board"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg><span>霞榜</span></a>
+  <a href="city.html" data-k="city"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 10c0 6-9 12-9 12S3 16 3 10a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>城市</span></a>
+</nav>
+
+<!-- 启用服务端缓存代理后改成 '/om'（见 deploy/README.md） -->
+<script>window.GLOW_OM_BASE = "";</script>
+<script src="../algo.js?v=20261024a"></script>
+<script src="../api.js?v=20261024a"></script>
+<script src="assets/js/glow.js?v=20261024a"></script>
+<script src="assets/js/forecast.js?v=20261024a"></script>
+<script src="assets/js/city.js?v=20261024a"></script>
+</body>
+</html>

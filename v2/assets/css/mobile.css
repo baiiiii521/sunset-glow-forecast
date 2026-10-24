@@ -1,0 +1,236 @@
+/* ============================================================
+   GLOW v2 · mobile.css — 真正的移动端版式（非缩放）
+   断点 767px；设计基准 390×844
+   ============================================================ */
+:root{--gutter:20px;--section-y:56px;--fs-h1:30px}
+
+body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+
+/* ---------- 顶栏：只留品牌 + 搜索 ---------- */
+.mast{height:56px;padding:0 14px;background:linear-gradient(180deg,rgba(6,5,14,.86),rgba(6,5,14,.32));backdrop-filter:blur(14px)}
+.mast .nav{display:none}
+.mast .icon-btn{display:none}
+.brand .stamp{width:26px;height:26px;font-size:14px}
+.brand .brand-txt span{display:none}
+.brand .brand-txt b{font-size:15px;letter-spacing:.16em}
+.search-trigger{width:auto;padding:0 12px;height:44px;gap:6px;min-width:44px}
+.mast .brand{min-height:44px;display:flex;align-items:center;gap:8px}
+.search-trigger #searchLabel{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.search-trigger kbd{display:none}
+
+/* ---------- Hero：分数先行，事实条代替右轨 ---------- */
+.hero{min-height:auto;padding:0 0 24px}
+.hero-grid{display:block;padding:0 var(--gutter)}
+.hero-main{max-width:none;padding-top:76px}
+.rail{display:none}
+.hero .place{font-size:12px;gap:10px;flex-wrap:wrap}
+.hero .place em{font-size:11px}
+.hero-word{font-size:clamp(44px,13vw,64px);margin-top:14px;line-height:.92}
+.score-row{display:flex;align-items:flex-end;gap:12px;margin-top:6px}
+.score-xl{font-size:clamp(88px,26vw,124px);line-height:.82}
+.score-unit .u{font-size:12px}
+.score-unit .g{font-size:13px;margin-top:4px}
+.verdict{font-size:15px;line-height:1.6;margin-top:16px;max-width:32ch}
+.window-row{display:grid;grid-template-columns:1fr 1fr;gap:14px 10px;margin-top:18px;
+  padding-top:16px;border-top:1px solid var(--line)}
+.window-row > div:first-child{grid-column:1/-1}
+.window-row .win{white-space:nowrap}
+.window-row .lab{font-size:10px}
+.win{font-size:clamp(30px,8.6vw,40px);line-height:1.05}
+
+.chips{flex-wrap:nowrap;overflow-x:auto;gap:6px;margin:16px -20px 0;padding:0 20px 2px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;padding:9px 12px;font-size:11.5px;min-height:40px}
+
+.cta-row{display:grid;grid-template-columns:1fr;gap:10px;margin-top:22px}
+.btn{width:100%;justify-content:center;min-height:50px;font-size:14px}
+
+.hero-facts-m{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  margin:22px var(--gutter) 0;border:1px solid var(--line)}
+.hero-facts-m > div{background:var(--ink-900);padding:12px 14px;display:flex;flex-direction:column;gap:5px}
+.hero-facts-m .lab{font-size:10px;letter-spacing:.1em}
+.hero-facts-m b{font-family:var(--font-mono);font-size:16px;font-weight:500;color:var(--cream)}
+.hero-foot{display:none}
+
+#heroChips .chip:nth-child(4){display:none}
+
+/* ---------- Section 骨架 ---------- */
+.section{padding:var(--section-y) 0}
+.sec-head{display:block}
+.sec-head .h1{margin-top:10px}
+.sec-head .lede{margin-top:14px;font-size:14px;max-width:none}
+.h1{font-size:30px;line-height:1.06}
+.lab{font-size:10px;letter-spacing:.12em}
+
+/* ---------- 四场：横向卡片 ---------- */
+.rail-events{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;
+  margin:24px -20px 0;padding:0 20px 4px;scrollbar-width:none}
+.rail-events::-webkit-scrollbar{display:none}
+.ev{flex:0 0 78%;scroll-snap-align:start;min-height:212px;padding:18px 18px 18px;
+  border:1px solid var(--line)!important;background:rgba(6,5,14,.5)}
+.ev.on{background:var(--ink-800);border-color:rgba(255,90,31,.4)!important}
+.ev-score{font-size:56px}
+.ev-why{font-size:12px;margin-top:8px;line-height:1.5}
+
+.gates{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:20px}
+.gate{padding:12px 10px}
+.gate .v{font-size:26px}
+
+/* ---------- 时间轴 ---------- */
+.tl{margin-top:26px}
+.tl-stage{height:44svh;min-height:270px;border-radius:2px}
+.tl-inner{padding:18px 18px 20px}
+.tl-clock{font-size:clamp(48px,15vw,72px);line-height:.9}
+.tl-stats{gap:14px;flex-wrap:wrap;margin-top:10px}
+.tl-phase{right:18px;bottom:18px}
+.tl-phase .n{font-size:15px}
+.tl-controls{margin-top:14px}
+.tl-track{height:64px}
+.tl-ticks span{font-size:9px}
+.tl-bandlabels{display:none}
+.tl-legend{font-size:10px;gap:10px;flex-wrap:wrap;margin-top:8px}
+.tl-head b{font-size:10px}
+
+/* ---------- 剖面：卡片化 ---------- */
+.profile{display:block}
+.profile > div:first-child p{font-size:13px}
+.prow{grid-template-columns:1fr 46px;grid-template-areas:"nm v" "sb sb";gap:0 12px;
+  height:auto;padding:11px 0;border-bottom:1px solid var(--line)}
+.prow.head{display:none}
+.prow .zz{grid-column:1/-1;font-size:10px;color:var(--veil);padding:16px 0 6px;letter-spacing:.1em}
+.prow .nm{grid-area:nm;font-size:14px}
+.prow .nm i{font-size:9px}
+.prow .sb{grid-area:sb;margin:8px 0 0!important}
+.prow .w{display:none}
+.prow .v{grid-area:v;text-align:right;font-size:15px}
+#pfLegend{flex-direction:column;align-items:flex-start;gap:8px!important}
+
+/* ---------- 七日：横向卡 ---------- */
+.week{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;
+  margin:26px -20px 0;padding:0 20px 6px;scrollbar-width:none}
+.week::-webkit-scrollbar{display:none}
+.wk{flex:0 0 84px;min-height:0;padding:14px 10px 12px;scroll-snap-align:start}
+.wk-bar{min-height:76px;gap:5px;margin:12px 0 8px}
+.wk-v{font-size:22px}
+.wk-g{font-size:10px}
+.wk-flag{font-size:8px;padding:2px 5px}
+#wkTitle{font-size:26px}
+
+/* ---------- 霞榜预告 ---------- */
+.teaser{display:block}
+.teaser .big{font-size:clamp(30px,9vw,40px);line-height:1.06;margin-top:10px}
+.teaser .body{font-size:14px}
+.belt{display:none}
+.trow{padding:14px 0;gap:14px}
+.trow .ct{font-size:16px}
+.trow:first-child .ct{font-size:19px}
+.trow .sc{font-size:19px;width:44px}
+.trow:first-child .sc{font-size:26px}
+.trow .dt{width:46px;font-size:11px}
+.tabs{width:100%;justify-content:stretch}
+.tab{flex:1;min-height:40px;font-size:12px}
+
+/* ---------- 算法 ---------- */
+.brief .knobs{grid-template-columns:1fr!important;gap:18px;margin-top:28px}
+.brief .knob h3{font-size:18px}
+.brief .knob p{font-size:13px}
+.brief .formula{flex-direction:column;align-items:flex-start;gap:10px;margin-top:32px}
+.brief .formula .eq{font-size:15px;line-height:1.5}
+.brief .h1{font-size:26px!important}
+
+/* ---------- Footer ---------- */
+.foot{padding:56px 0 calc(24px + env(safe-area-inset-bottom))}
+.foot .cols{grid-template-columns:1fr!important;gap:24px}
+.foot .sig{margin-top:48px;flex-direction:column;align-items:flex-start;gap:16px}
+.foot .sig .big{font-size:44px}
+.foot .sig .col{align-items:flex-start!important}
+
+/* ---------- 底部 tabbar ---------- */
+.tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:var(--z-mast);
+  height:calc(64px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
+  background:rgba(6,5,14,.9);backdrop-filter:blur(20px) saturate(1.2);
+  border-top:1px solid var(--line)}
+.tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  color:var(--veil);font-size:10px;letter-spacing:.06em;text-decoration:none}
+.tabbar a[aria-current="page"]{color:var(--cream)}
+.tabbar a[aria-current="page"] svg{stroke:var(--ember)}
+.tabbar svg{width:20px;height:20px}
+
+/* 横屏 / 小平板 */
+@media (max-width:767px) and (orientation:landscape){
+  .tl-stage{height:60svh}
+  .hero-main{padding-top:64px}
+}
+
+/* ================= 城市页 P02 ================= */
+.city-head{padding:80px 0 22px}
+.city-head .sky--thin{opacity:.4}
+.city-name{font-size:clamp(38px,11.5vw,58px);margin-top:12px}
+.city-meta{gap:12px;font-size:10px}
+.city-tabs{margin-top:18px;width:100%}
+.ctab{flex:1;font-size:11px;padding:8px 6px}
+
+.today-row{grid-template-columns:1fr 1fr;margin-top:22px}
+.tcard.big{grid-column:1/-1;min-height:118px}
+.tcard{min-height:88px;padding:14px}
+.tscore{font-size:46px}
+.tscore span{font-size:11px}
+.tgrade{font-size:11px}
+.tv{font-size:17px}
+
+.matrix{margin:22px -20px 0;padding:0 20px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.mx-grid{grid-template-columns:54px repeat(7,minmax(58px,1fr));min-width:520px}
+.mx-day{padding:9px 6px}
+.mx-day b{font-size:10px}
+.mx-day span{font-size:9px}
+.mx-cell{min-height:74px;padding:8px}
+.mx-cell b{font-size:19px}
+.mx-cell span{font-size:9px;margin-top:3px}
+.mx-label{font-size:11px;padding:0 8px}
+.legend-row{gap:10px;margin-top:12px}
+.legend-row span{font-size:9px}
+.legend-row .hint{display:none}
+
+.deck{padding:12px 12px 14px}
+#deckSvg{height:190px}
+.deck-legend{gap:12px;margin-top:12px}
+.deck-legend span{font-size:10px}
+
+.mrow{grid-template-columns:1fr 1fr;gap:10px}
+.mcard{padding:14px}
+.mcard b{font-size:20px}
+
+/* ================= 霞榜页 P03 ================= */
+.board-head{padding:80px 0 4px}
+.board-head .display{font-size:clamp(38px,12vw,58px)}
+.board-head .row{gap:12px!important}
+.scope-switch{width:100%}
+.sw{flex:1;padding:10px 0}
+
+.map-wrap{display:flex;flex-direction:column;margin-top:18px}
+.map-canvas{order:-1;min-height:198px;max-height:198px;border-bottom:1px solid var(--line)}
+.map-canvas .dot text{display:none}
+.map-hint{display:block;position:absolute;right:12px;top:10px;font-family:var(--font-mono);font-size:9px;color:var(--veil)}
+.map-side{padding:14px 0 4px}
+.map-side .lab{padding:0 14px 8px;font-size:10px}
+.map-legend{display:none}
+.map-tip{display:none}
+.brow{padding:11px 14px;gap:10px}
+.brow .nm{font-size:14px}
+.brow .sc{font-size:18px}
+.brow:first-child .sc{font-size:24px}
+
+.dual-grid{grid-template-columns:1fr;gap:30px;margin-top:20px}
+#cnList .brow .nm,#glList .brow .nm{font-size:15px}
+#cnList .brow .sc,#glList .brow .sc{font-size:20px}
+
+.dist{grid-template-columns:repeat(3,1fr);gap:8px;height:auto;margin-top:22px}
+.dbar{height:92px}
+.dnum{font-size:15px}
+.dlab{font-size:10px}
+
+.search-box{margin-top:20px}
+.search-box input{height:50px;font-size:14px}
+.sres{padding:12px 14px}
+.sres b{font-size:14px}

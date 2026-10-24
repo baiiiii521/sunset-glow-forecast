@@ -1,2 +1,5 @@
 # 服务器上由 scripts/build-rankings.js 每天生成，不入库
 data/
+
+# v2 构建产物
+!v2/assets/fonts/

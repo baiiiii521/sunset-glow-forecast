@@ -1,0 +1,21 @@
+/* 自托管字体：Noto Serif SC（GB2312 子集，6896 字）+ JetBrains Mono（拉丁） */
+@font-face{
+  font-family:'Noto Serif SC Local';
+  src:url('../fonts/noto-serif-sc-400.woff2') format('woff2');
+  font-weight:400;font-style:normal;font-display:swap;
+}
+@font-face{
+  font-family:'Noto Serif SC Local';
+  src:url('../fonts/noto-serif-sc-900.woff2') format('woff2');
+  font-weight:900;font-style:normal;font-display:swap;
+}
+@font-face{
+  font-family:'JetBrains Mono Local';
+  src:url('../fonts/jetbrains-mono-400.woff2') format('woff2');
+  font-weight:400;font-style:normal;font-display:swap;
+}
+@font-face{
+  font-family:'JetBrains Mono Local';
+  src:url('../fonts/jetbrains-mono-600.woff2') format('woff2');
+  font-weight:600;font-style:normal;font-display:swap;
+}

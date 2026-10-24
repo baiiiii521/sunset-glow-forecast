@@ -1,0 +1,78 @@
+/* ============================================================
+   GLOW v2 · city.css — P02 城市页
+   ============================================================ */
+.city-head{position:relative;padding:120px 0 40px;overflow:hidden}
+.city-head .sky--thin{position:absolute;inset:0;height:100%;opacity:.55}
+.city-head .sky--thin::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(6,5,14,.86) 0%,rgba(6,5,14,.55) 40%,var(--ink-900) 100%)}
+.city-head-in{position:relative;z-index:2}
+.back{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--mist)}
+.back:hover{color:var(--cream)}
+.city-name{font-size:clamp(44px,7vw,96px);line-height:.95;letter-spacing:-.035em;margin-top:18px}
+.city-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-family:var(--font-mono);
+  font-size:11px;color:var(--veil);letter-spacing:.06em}
+.city-tabs{display:inline-flex;gap:2px;background:rgba(246,239,230,.06);padding:3px;margin-top:26px;border-radius:2px}
+.ctab{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;padding:8px 16px;min-height:34px;
+  color:var(--mist);background:transparent;border:0;cursor:pointer}
+.ctab.on{background:rgba(246,239,230,.14);color:var(--cream)}
+
+/* 今天 */
+.today-row{display:grid;grid-template-columns:1.4fr repeat(6,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);margin-top:32px}
+.tcard{background:var(--ink-900);padding:20px 18px;display:flex;flex-direction:column;justify-content:space-between;min-height:132px}
+.tcard.big{background:linear-gradient(160deg,rgba(255,90,31,.10),rgba(6,5,14,1) 70%);border-top:2px solid var(--c,var(--ember))}
+.tscore{font-family:var(--font-mono);font-size:56px;line-height:1;letter-spacing:-.02em;color:var(--c,var(--cream))}
+.tscore span{font-size:13px;color:var(--veil);margin-left:6px}
+.tgrade{font-size:12px;color:var(--mist);margin-top:6px}
+.tv{font-family:var(--font-mono);font-size:22px;color:var(--cream);margin-top:auto}
+
+/* 矩阵 */
+.matrix{margin-top:30px}
+.mx-grid{display:grid;grid-template-columns:112px repeat(7,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+.mx-corner{background:var(--ink-900)}
+.mx-day{background:var(--ink-900);padding:12px 10px;display:flex;flex-direction:column;gap:3px}
+.mx-day b{font-family:var(--font-mono);font-size:11px;color:var(--mist);font-weight:500}
+.mx-day span{font-family:var(--font-mono);font-size:10px;color:var(--veil)}
+.mx-day.on{background:var(--ink-800);box-shadow:inset 0 2px 0 var(--ember)}
+.mx-label{background:var(--ink-900);display:flex;align-items:center;padding:0 14px;font-size:13px;color:var(--mist)}
+.mx-cell{position:relative;background:var(--ink-900);border:0;cursor:pointer;min-height:92px;
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;
+  padding:10px 12px;color:var(--cream);text-align:left;overflow:hidden;transition:background var(--dur-base)}
+.mx-cell:hover{background:var(--ink-800)}
+.mx-cell b{font-family:var(--font-mono);font-size:26px;line-height:1;z-index:2;font-weight:500}
+.mx-cell span{font-size:11px;color:var(--mist);margin-top:5px;z-index:2}
+.mx-cell .mx-bar{position:absolute;left:0;bottom:0;width:100%;opacity:.16;z-index:1}
+.mx-cell.on{box-shadow:inset 0 0 0 2px var(--ember)}
+.mx-cell.empty{color:var(--veil);cursor:default}
+.mx-cell.empty b{font-size:18px}
+.legend-row{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;align-items:center}
+.legend-row span{display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:10px;color:var(--veil)}
+.legend-row i{width:9px;height:9px;display:block}
+.legend-row .hint{margin-left:auto;color:var(--veil)}
+
+/* 云层 */
+.deck{margin-top:26px;border:1px solid var(--line);background:rgba(246,239,230,.02);padding:22px}
+#deckSvg{width:100%;height:260px;display:block}
+.deck-legend{display:flex;gap:22px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.deck-legend span{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;color:var(--mist)}
+.deck-legend i{width:14px;height:3px;display:block}
+
+/* 模式 */
+.models-box{margin-top:28px}
+.mrow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.mcard{border:1px solid var(--line);padding:18px;background:rgba(246,239,230,.02)}
+.mcard b{font-family:var(--font-mono);font-size:24px;font-weight:500}
+
+@media (max-width:1100px){
+  .today-row{grid-template-columns:repeat(3,1fr)}
+  .tcard.big{grid-column:1/-1}
+  .mrow{grid-template-columns:repeat(2,1fr)}
+}
+
+/* 今日榜归属徽标 */
+.board-badge{display:inline-block;margin-top:14px;padding:6px 10px;border-radius:2px;
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;color:var(--mist);
+  background:rgba(246,239,230,.05);border:1px solid var(--line)}
+.board-badge.in{color:var(--gold);border-color:rgba(255,195,107,.35);background:rgba(255,195,107,.08)}
+.board-badge.live{color:var(--mist)}
+@media (max-width:767px){ .board-badge{font-size:9.5px;line-height:1.5;max-width:96%} }

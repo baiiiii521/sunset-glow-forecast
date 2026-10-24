@@ -10,8 +10,10 @@
   var A = global.SunsetAlgo;
 
   var GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
-  var FC_URL = 'https://api.open-meteo.com/v1/forecast';
-  var AQ_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+  // 可选：走自有缓存代理（nginx / node）。设置 window.GLOW_OM_BASE='/om' 即启用。
+  var OM = (typeof globalThis !== 'undefined' && globalThis.GLOW_OM_BASE) || '';
+  var FC_URL = OM ? OM + '/v1/forecast' : 'https://api.open-meteo.com/v1/forecast';
+  var AQ_URL = OM ? OM + '/air-quality/v1/air-quality' : 'https://air-quality-api.open-meteo.com/v1/air-quality';
 
   var HOURLY_VARS = [
     'temperature_2m', 'relative_humidity_2m', 'dew_point_2m', 'precipitation',
@@ -534,6 +536,9 @@
     fmtTime: fmtTime, fmtDate: fmtDate, viewingWindow: viewingWindow,
     searchPlaces: searchPlaces, rankScore: rankScore, normalizePlace: normalizePlace,
     evaluatePlace: evaluatePlace, evaluateNextSunset: evaluateNextSunset,
+    // 批量打分（霞榜扩容 / 每小时快照）：一次请求多坐标
+    CLOUD_VARS: CLOUD_VARS, HOURLY_VARS: HOURLY_VARS, UP_DIST_KM: UP_DIST_KM,
+    FC_URL: FC_URL, AQ_URL: AQ_URL,
     loadRankings: loadRankings, sortBoard: sortBoard,
     GLOBAL_CITIES: GLOBAL_CITIES, CHINA_CITIES: CHINA_CITIES,
     forecastURL: forecastURL, aqURL: aqURL, ensembleURL: ensembleURL, MODELS: MODELS,
