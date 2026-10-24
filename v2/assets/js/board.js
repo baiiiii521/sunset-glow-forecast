@@ -133,8 +133,19 @@
     $('#mpTitle').textContent = 'TOP 10 · ' + (state.scope === 'global' ? '全球' : '中国');
     var when = d.computedAt ? new Date(d.computedAt) : null;
     var stale = when && (Date.now() - when.getTime() > 36 * 3600e3);
-    $('#boardMeta').textContent = when ? ((stale ? '⚠ 非今日 · ' : '更新 ') + (when.getMonth() + 1) + '-' + when.getDate() + ' ' +
-      G.pad(when.getHours()) + ':' + G.pad(when.getMinutes())) : '';
+    var rf = d.refresh || null;
+    // 有轻量刷新时，榜单里同时存在「刚刷新」和「沿用全量」两类分数，时间口径要说清楚
+    var rfAt = rf && rf.at ? new Date(rf.at) : null;
+    var shownAt = rfAt || when;
+    var staleN = (d.global || []).concat(d.china || []).filter(function (c) { return c.stale; }).length;
+    $('#boardMeta').textContent = shownAt ? ((stale ? '⚠ 非今日 · ' : '刷新 ') + (shownAt.getMonth() + 1) + '-' + shownAt.getDate() + ' ' +
+      G.pad(shownAt.getHours()) + ':' + G.pad(shownAt.getMinutes())) : '';
+    if (rf && rf.partial) $('#boardMeta').textContent += ' · 部分未刷新 ' + rf.ok + '/' + rf.total;
+    var sub = document.getElementById('boardMetaSub');
+    if (sub) {
+      sub.textContent = (rfAt && staleN) ? ('前 ' + rf.ok + ' 名刚重算，其余 ' + staleN + ' 条沿用 ' +
+        (when ? (when.getMonth() + 1) + '-' + when.getDate() + ' ' + G.pad(when.getHours()) + ':' + G.pad(when.getMinutes()) : '上次全量')) : '';
+    }
     $('#boardMeta').style.color = stale ? 'var(--gold)' : '';
 
     var bn = document.getElementById('staleBanner');

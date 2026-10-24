@@ -68,7 +68,18 @@ window.FORECAST = (function () {
   // 从七日结果里切出「今早/今晚/明早/明晚」四场，字段与 evaluatePlace 一致
   function fourEvents(lat, lon) {
     return weeklyCached(lat, lon, 7).then(function (w) {
-      var d0 = w.days[0] || {}, d1 = w.days[1] || {};
+      // 按地点当地日期找「今天/明天」，不假设 days[0] 一定是今天
+      var todayStr = API.zonedParts(Date.now(), w.offsetSec).dateStr;
+      var tmrStr = API.zonedParts(Date.now() + 86400000, w.offsetSec).dateStr;
+      var iT = -1, iM = -1;
+      (w.days || []).forEach(function (d, i) {
+        if (d.date === todayStr && iT < 0) iT = i;
+        if (d.date === tmrStr && iM < 0) iM = i;
+      });
+      // 今天已不在窗口里（跨零点等）：退化成前两个可用日，仍按真实日期标注
+      if (iT < 0) iT = 0;
+      if (iM < 0) iM = iT + 1;
+      var d0 = w.days[iT] || {}, d1 = w.days[iM] || {};
       var raw = [
         { day: 'today', type: 'sunrise', ev: d0.sunrise },
         { day: 'today', type: 'sunset', ev: d0.sunset },

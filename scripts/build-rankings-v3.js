@@ -128,12 +128,11 @@ function counts(list) {
     const byName = new Map(fresh.filter(Boolean).map((r) => [r.city.name, r]));
     const apply = (list) => list.map((r) => {
       const f = byName.get(r.city.name);
-      if (!f) return r;
-      // 精算失败回退的粗分不替换（口径不同，会让排序失真）
-      if (f.coarseOnly) return r;
+      // 没刷新到的城市：保留旧分数，但打上 stale，避免被当成同一时刻的数据
+      if (!f || f.coarseOnly) return { ...r, stale: true };
       return { city: f.city, score: f.score, grade: f.grade, level: f.level, conf: f.conf,
         clarity: f.clarity || null, models: f.ensemble ? f.ensemble.members.map((m) => [m.label, m.score]) : null,
-        epoch: f.epoch, offsetSec: f.offsetSec, tzName: f.tzName, day: f.day };
+        epoch: f.epoch, offsetSec: f.offsetSec, tzName: f.tzName, day: f.day, stale: false };
     });
     const okN0 = fresh.filter(Boolean).length;
     if (okN0 === 0) {
@@ -143,6 +142,7 @@ function counts(list) {
     const out = {
       ...cur,
       refreshedAt: Date.now(),   // 不动 computedAt：避免把旧分数伪装成新榜单
+      refresh: { ok: okN0, total: picks.length, at: Date.now(), partial: okN0 < picks.length },
       stats: cur.stats || { global: { counts: [] }, china: { counts: [] } },   // 参评池没变，分布沿用上一次全量
       global: apply(cur.global || []).sort((a, b) => b.score - a.score),
       china: apply(cur.china || []).sort((a, b) => b.score - a.score)

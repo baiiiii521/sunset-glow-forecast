@@ -294,9 +294,14 @@
     var times = (h.time || []).map(function (t) { return toEpoch(t, offsetSec); });
     var i = idxFloor(times, eventEpoch);
 
-    var mid = (cloudOverride && cloudOverride.mid !== undefined && cloudOverride.mid !== null) ? cloudOverride.mid : hv(h, 'cloud_cover_mid', i, 0);
-    var high = (cloudOverride && cloudOverride.high !== undefined && cloudOverride.high !== null) ? cloudOverride.high : hv(h, 'cloud_cover_high', i, 0);
-    var low = (cloudOverride && cloudOverride.low !== undefined && cloudOverride.low !== null) ? cloudOverride.low : hv(h, 'cloud_cover_low', i, 0);
+    // 缺字段要能区分出来：null = 没数据，0 = 真的晴。缺数据不能当利好
+    var midRaw = (cloudOverride && cloudOverride.mid !== undefined && cloudOverride.mid !== null) ? cloudOverride.mid : hv(h, 'cloud_cover_mid', i, null);
+    var highRaw = (cloudOverride && cloudOverride.high !== undefined && cloudOverride.high !== null) ? cloudOverride.high : hv(h, 'cloud_cover_high', i, null);
+    var lowRaw = (cloudOverride && cloudOverride.low !== undefined && cloudOverride.low !== null) ? cloudOverride.low : hv(h, 'cloud_cover_low', i, null);
+    var cloudMissing = (midRaw === null || midRaw === undefined || highRaw === null || highRaw === undefined || lowRaw === null || lowRaw === undefined);
+    var mid = cloudMissing ? 0 : midRaw;
+    var high = cloudMissing ? 0 : highRaw;
+    var low = cloudMissing ? 0 : lowRaw;
     var precip = hv(h, 'precipitation', i, 0);
     var prob = hv(h, 'precipitation_probability', i, 0);
     var vis = hv(h, 'visibility', i, null);
@@ -345,10 +350,10 @@
     }
 
     var comps = {
-      curtain: cCurtain(mid, high),
-      low: cLow(low),
+      curtain: cloudMissing ? [null, '缺云量数据'] : cCurtain(mid, high),
+      low: cloudMissing ? [null, '缺云量数据'] : cLow(low),
       gap: cGap(upLowAvg, upTotalAvg),
-      gapV2: cGap2(upLowAvg, upMidAvg),
+      gapV2: cloudMissing ? [null, '缺云量数据'] : cGap2(upLowAvg, upMidAvg),
       precip: cPrecip(precip, prob),
       washed: cWashed(pre3, precip, prob),
       aod: cAod(aod),
@@ -495,14 +500,15 @@
   var AIR_W = [['precip', 10], ['aod', 5], ['vis', 3], ['pm', 3], ['dew', 2], ['wind', 2], ['cape', 2]];
 
   function glow(comps) {
-    var lw = 0, ls = 0;
+    var lw = 0, ls = 0, keyMissing = false, keyZero = false;
     KEY_W.forEach(function (w) {
       var s = comps[w[0]][0];
-      if (s === null || s === undefined) return;
+      if (s === null || s === undefined) { keyMissing = true; return; }   // 缺数据：不假装它通过
+      if (s <= 0) keyZero = true;                                        // 关键项为 0：硬闸，直接归零
       lw += w[1];
       ls += w[1] * Math.log(Math.max(s, 1) / 100);
     });
-    var key = lw ? 100 * Math.exp(ls / lw) : 50;
+    var key = keyZero ? 0 : (lw ? 100 * Math.exp(ls / lw) : 0);
     var aw = 0, as = 0;
     AIR_W.forEach(function (w) {
       var s = comps[w[0]][0];
@@ -513,6 +519,9 @@
     var g = key * (0.7 + 0.3 * air / 100);
     if (comps.washed[0]) g += comps.washed[0] * 0.05; // 雨后洗净：最多 +5
     if (comps.precip[0] === 0) g = Math.min(g, 34); // 霞时刻降水：最高微烧
+    // 幕布/缺口/低云任一项缺数据：最多给到「微烧」，不拿未知当利好
+    if (keyMissing) g = Math.min(g, 34);
+    comps.__incomplete = keyMissing;
     return clamp(g, 0, 100);
   }
 
