@@ -34,9 +34,22 @@ function conditions(r) {
 
 async function load() {
   if (/^https?:/.test(src)) {
-    const res = await fetch(src + (src.includes('?') ? '&' : '?') + 't=' + Date.now());
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
+    // 2026-10-24 15:29 的 cron 就是死在这里：裸 fetch 没有超时也没有重试，
+    // 一次网络抖动（Node 只报 "fetch failed"）就让整条复核失败。
+    // 现在：20s 超时 + 4 次退避（5s/15s/40s），仍然失败才抛。
+    let lastErr;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const res = await fetch(src + (src.includes('?') ? '&' : '?') + 't=' + Date.now(),
+                                 { signal: AbortSignal.timeout(20000) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return await res.json();
+      } catch (e) {
+        lastErr = e;
+        if (attempt < 3) await new Promise((r) => setTimeout(r, [5000, 15000, 40000][attempt]));
+      }
+    }
+    throw new Error('榜单取数 4 次仍失败（' + (lastErr && lastErr.message || lastErr) + '）');
   }
   return JSON.parse(fs.readFileSync(src, 'utf8'));
 }
