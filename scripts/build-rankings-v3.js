@@ -30,6 +30,7 @@ function arg(name, def) {
 const N_GLOBAL = arg('global', 600);
 const N_CHINA = arg('china', 400);
 const TOP_K = arg('top', 60);
+const REFRESH = arg('refresh', 0);   // >0：只重算现有榜单前 N 名（15:00 轻量刷新）
 const OUT = arg('out', '') || path.join(ROOT, 'data', 'rankings.json');
 
 function readWorld() {
@@ -51,6 +52,34 @@ function dedupe(list) {
   });
 }
 
+// 人口表（用于识别卫星城）：名字归一化后取最大人口
+const norm = (n) => String(n || '').replace(/[市区县镇]$/, '').trim();
+const POP = new Map();
+world.forEach((c) => {
+  const k = norm(c.zh || c.en);
+  if (k && (!POP.has(k) || POP.get(k) < c.pop)) POP.set(k, c.pop);
+});
+const popOf = (city) => POP.get(norm(city.name)) || 0;
+
+function haversine(a, b) {
+  const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180;
+  const la1 = a.lat * Math.PI / 180, la2 = b.lat * Math.PI / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// 卫星城并入母城：60km 内、人口不到母城 90% 的直接丢掉
+function mergeSatellites(list) {
+  const arr = list.map((r) => ({ r, pop: popOf(r.city) })).sort((a, b) => b.pop - a.pop);
+  const kept = [];
+  for (const it of arr) {
+    const near = kept.find((k) => haversine(k.r.city, it.r.city) < 60);
+    if (near && it.pop < near.pop * 0.9) continue;
+    kept.push(it);
+  }
+  return kept.map((x) => x.r);
+}
+
 function counts(list) {
   const c = [0, 0, 0, 0, 0, 0];
   list.forEach((r) => { if (r && r.level != null) c[r.level] += 1; });
@@ -61,10 +90,51 @@ function counts(list) {
   const t0 = Date.now();
   const world = readWorld();
 
+  // ---- 15:00 轻量刷新：只重算已在榜的前 N 名（约 N×11 次调用） ----
+  if (REFRESH > 0) {
+    const cur = JSON.parse(fs.readFileSync(OUT, 'utf8'));
+    const picks = (cur.global || []).slice(0, REFRESH).concat((cur.china || []).slice(0, REFRESH));
+    const fresh = [];
+    for (const r of picks) {
+      try {
+        const full = await API.evaluateNextSunset({ name: r.city.name, country: r.city.country, lat: r.city.lat, lon: r.city.lon });
+        fresh.push(full);
+      } catch (e) {
+        fresh.push(null);
+      }
+    }
+    const byName = new Map(fresh.filter(Boolean).map((r) => [r.city.name, r]));
+    const apply = (list) => list.map((r) => {
+      const f = byName.get(r.city.name);
+      if (!f) return r;
+      return { city: f.city, score: f.score, grade: f.grade, level: f.level, conf: f.conf,
+        clarity: f.clarity || null, models: f.ensemble ? f.ensemble.members.map((m) => [m.label, m.score]) : null,
+        epoch: f.epoch, offsetSec: f.offsetSec, tzName: f.tzName, day: f.day };
+    });
+    const out = {
+      ...cur,
+      computedAt: Date.now(),
+      refreshedAt: Date.now(),
+      stats: { global: counts(apply(cur.global || [])), china: counts(apply(cur.china || [])) },
+      global: apply(cur.global || []).sort((a, b) => b.score - a.score),
+      china: apply(cur.china || []).sort((a, b) => b.score - a.score)
+    };
+    fs.writeFileSync(OUT + '.tmp', JSON.stringify(out));
+    fs.renameSync(OUT + '.tmp', OUT);
+    const okN = fresh.filter(Boolean).length;
+    console.error(`${new Date().toISOString()} 轻量刷新完成：${okN}/${picks.length} 城重算`);
+    console.log(`全球 #1 ${out.global[0].city.name} ${out.global[0].score}  中国 #1 ${out.china[0].city.name} ${out.china[0].score}`);
+    return;
+  }
+
+
+
   // ---- 城市池 ----
+  // 世界榜只保留精选大城市（N_GLOBAL<=60 时完全用精选表，避免出现卫星城/郊区）
   const globalPool = dedupe(
-    API.GLOBAL_CITIES
-      .concat(world.filter((c) => c.cc !== 'CN').slice(0, N_GLOBAL).map((c) => ({ name: c.zh || c.en, country: c.cc, lat: c.lat, lon: c.lon })))
+    N_GLOBAL <= 60
+      ? API.GLOBAL_CITIES.slice(0, N_GLOBAL)
+      : API.GLOBAL_CITIES.concat(world.filter((c) => c.cc !== 'CN').slice(0, N_GLOBAL).map((c) => ({ name: c.zh || c.en, country: c.cc, lat: c.lat, lon: c.lon })))
   );
   const chinaPool = dedupe(
     API.CHINA_CITIES
@@ -100,8 +170,8 @@ function counts(list) {
   const [fineG, fineC] = await Promise.all([refine(headG), refine(headC)]);
   console.error(`${new Date().toISOString()} 精算完成：全球 ${fineG.length} / 中国 ${fineC.length}`);
 
-  const boardG = API.sortBoard(fineG);
-  const boardC = API.sortBoard(fineC);
+  const boardG = API.sortBoard(mergeSatellites(fineG));
+  const boardC = API.sortBoard(mergeSatellites(fineC));
   if (boardG.length < 5 || boardC.length < 5) {
     throw new Error(`有效城市太少（全球 ${boardG.length}、中国 ${boardC.length}），保留旧榜单`);
   }
