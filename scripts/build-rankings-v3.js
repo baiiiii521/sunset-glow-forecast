@@ -54,12 +54,15 @@ function dedupe(list) {
 
 // 人口表（用于识别卫星城）：名字归一化后取最大人口
 const norm = (n) => String(n || '').replace(/[市区县镇]$/, '').trim();
-const POP = new Map();
-world.forEach((c) => {
-  const k = norm(c.zh || c.en);
-  if (k && (!POP.has(k) || POP.get(k) < c.pop)) POP.set(k, c.pop);
-});
-const popOf = (city) => POP.get(norm(city.name)) || 0;
+let POP = null;
+function buildPop(worldList) {
+  POP = new Map();
+  worldList.forEach((c) => {
+    const k = norm(c.zh || c.en);
+    if (k && (!POP.has(k) || POP.get(k) < c.pop)) POP.set(k, c.pop);
+  });
+}
+const popOf = (city) => (POP ? POP.get(norm(city.name)) : 0) || 0;
 
 function haversine(a, b) {
   const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180;
@@ -89,6 +92,7 @@ function counts(list) {
 (async () => {
   const t0 = Date.now();
   const world = readWorld();
+  buildPop(world);
 
   // ---- 15:00 轻量刷新：只重算已在榜的前 N 名（约 N×11 次调用） ----
   if (REFRESH > 0) {
