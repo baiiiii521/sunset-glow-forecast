@@ -37,10 +37,14 @@ function readWorld() {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
+// 「海口」和「海口市」是同一座城：比较前先去掉行政区后缀
+function normName(n) {
+  return String(n || '').replace(/[市区县镇]$/, '').trim();
+}
 function dedupe(list) {
   const seen = new Set();
   return list.filter((c) => {
-    const k = c.name + '|' + Number(c.lat).toFixed(2) + ',' + Number(c.lon).toFixed(2);
+    const k = normName(c.name) + '|' + Number(c.lat).toFixed(1);
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
