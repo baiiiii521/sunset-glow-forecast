@@ -13,7 +13,10 @@
   // 可选：走自有缓存代理（nginx / node）。设置 window.GLOW_OM_BASE='/om' 即启用。
   // 主路径直连 Open-Meteo（用户就近的边缘节点，最快）；
   // 只有直连被限流（429）或失败时，才回落到自有缓存代理（window.GLOW_OM_BASE）。
-  var OM = (typeof globalThis !== 'undefined' && globalThis.GLOW_OM_BASE) || '';
+  // node 端（跑批/快照）用环境变量 GLOW_OM_BASE 指到备用出口（如 http://127.0.0.1:8791，
+  // 经 ssh 隧道到华为云 relay），直连 429 时同样自动切换；浏览器端无 process，行为不变。
+  var OM = (typeof globalThis !== 'undefined' && globalThis.GLOW_OM_BASE) ||
+    (typeof process !== 'undefined' && process.env && process.env.GLOW_OM_BASE) || '';
   var FC_URL = 'https://api.open-meteo.com/v1/forecast';
   var AQ_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
   var FC_FALLBACK = OM ? OM + '/v1/forecast' : null;
@@ -35,7 +38,10 @@
   ].join(',');
 
   // Open-Meteo 免费层按分钟限流（429）：有兜底代理时立刻切换，没有才退避重试（4s、12s）
-  var RETRY_429 = [4000, 12000];
+  // Node 跑批（cron/快照）没有兜底代理，且不在用户浏览器里抢时间：退避拉长到 4 次。
+  // 浏览器端仍是 4s/12s 两次，避免页面卡顿。
+  var _isNode = (typeof process !== 'undefined' && process.versions && process.versions.node);
+  var RETRY_429 = _isNode ? [4000, 15000, 45000, 90000] : [4000, 12000];
 
   // 直连被限流/超时后，60 秒内直接走代理（避免每个请求都先撞一次 429）
   var _directDownUntil = 0;
