@@ -110,6 +110,8 @@ function counts(list) {
     const apply = (list) => list.map((r) => {
       const f = byName.get(r.city.name);
       if (!f) return r;
+      // 集合失败退化成单模式的结果不替换（口径不同，会让排序失真）
+      if (!f.ensemble || !f.ensemble.members) return r;
       return { city: f.city, score: f.score, grade: f.grade, level: f.level, conf: f.conf,
         clarity: f.clarity || null, models: f.ensemble ? f.ensemble.members.map((m) => [m.label, m.score]) : null,
         epoch: f.epoch, offsetSec: f.offsetSec, tzName: f.tzName, day: f.day };

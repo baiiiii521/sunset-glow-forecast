@@ -210,6 +210,7 @@
   }
 
   function setTL(t) {
+    if (!state.data || !state.data.events || !state.data.events.length) return;   // 取数中/无场次
     t = Math.max(-TL_SPAN, Math.min(TL_SPAN, t));
     state.tl.t = t;
     var ev = state.data.events[state.idx], offset = state.data.offsetSec;
@@ -503,8 +504,22 @@
     state.place = place;
     state.data = null;
     // 清空上一处的读数，避免切城市时短暂出现「新城市名 + 旧数据」
+    $('#placeLine').innerHTML = '<span>' + esc(place.name) + '</span><em>取数中…</em>';
+    $('#heroWord').textContent = '…';
+    $('#heroVerdict').firstChild.textContent = '正在拉取预报… ';
+    $('#heroWhy').textContent = '';
     $('#heroScore').textContent = '--';
+    $('#heroScore').className = 'score-xl';
     $('#heroGrade').textContent = '取数中';
+    if ($('#heroFactsM')) $('#heroFactsM').innerHTML = '';
+    $('#pfLegend').innerHTML = '';
+    $('#railSunset').textContent = 'SUNSET --:--';
+    $('#tlCaption').textContent = '取数中…';
+    $('#tlTicks').innerHTML = '';
+    $('#tlBands').innerHTML = '';
+    $('#tlClock').textContent = '--:--';
+    $('#tlElev').textContent = '--';
+    $('#tlPct').textContent = '--';
     $('#heroChips').innerHTML = '';
     $('#gates').innerHTML = '';
     $('#pfRows').innerHTML = '';
@@ -580,6 +595,7 @@
       console.error(err);
       G.notice('接口限流或超时，先显示每小时快照', 'warn');
       G.snapshotFor(place.name, place.lat, place.lon).then(function (snap) {
+        if (seq != null && seq !== placeSeq) return;   // 旧地点的快照，丢弃
         if (!snap) {
           $('#heroVerdict').firstChild.textContent = '今天取数失败。';
           $('#heroWhy').textContent = (err && err.message) || '请稍后重试';

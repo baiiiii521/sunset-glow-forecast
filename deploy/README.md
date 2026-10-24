@@ -8,7 +8,7 @@
 | 不想动 nginx，或要按城市做更细的缓存 | 30 行 Node 代理 | `deploy/cache-proxy.js` |
 | 接口挂了页面全空 | 前端回落每小时快照 `data/snapshots.json` | 已内置 |
 | 霞榜城市太少 | 两段式扩容（粗筛 850 城 → 精算 100 城 → 取前十） | `scripts/build-rankings-v3.js` |
-| 热门前 200 城要秒开 | 每小时快照 | `scripts/build-snapshots.js` |
+| 热门 20 城要秒开（免费额度下的上限） | 每小时快照 | `scripts/build-snapshots.js` |
 
 ## 一、启用缓存代理（二选一）
 
@@ -36,10 +36,8 @@ node deploy/cache-proxy.js 8790
 ## 二、定时任务
 
 ```cron
-# 每天 15:00（北京时间）重算霞榜：粗筛 850 城 → 精算 100 城 → 取前十
-0 15 * * * cd /var/www/glow && /usr/bin/node scripts/build-rankings-v3.js --global 500 --china 350 --top 50 >> /var/log/glow-rankings.log 2>&1
-
-# 每小时刷新热门 200 城快照（首屏秒开 + 降级兜底）
+# 调度以 deploy/crontab.txt 为准（两台机器分工：04:00 全量在算力机，15:00 刷新在站点机）
+# 下面只是单机版的示例，别和 crontab.txt 混用
 7 * * * * cd /var/www/glow && /usr/bin/node scripts/build-snapshots.js 200 >> /var/log/glow-snapshots.log 2>&1
 ```
 
@@ -97,16 +95,14 @@ Open-Meteo 按 IP 计费，所以第二台机器等于多一份 10,000/天。手
 
 ## 八、定时任务（已生效）
 
-```cron
-# 04:00 全量跑在算力机（UTC+8，额度独立），跑完 scp 推到站点机的 data 目录
-0 4 * * *  /home/ubuntu/glow/daily.sh        # 内部：build-rankings-v3 --global 30 --china 500 --top 30 + schema 测试 + scp
+完整内容见 `deploy/crontab.txt`，两台机器各贴各的一段：
 
-# 站点机（UTC+7）：15:00 只重算在榜城市；每小时刷新快照
-0 15 * * * build-rankings-v3.js --refresh 15 --out data/rankings.json && test-rankings-schema.js data/rankings.json
-7 * * * *  build-snapshots.js 20
-```
+| 机器 | 时区 | 任务 |
+|---|---|---|
+| 算力机（额度独立） | UTC+8 | `0 4 * * *` 全量：30 世界 + 500 中国，跑完做契约测试并 scp 推给站点机 |
+| 站点机 | UTC+7 | `0 15 * * *` 轻量刷新在榜城市；`7 * * * *` 快照 20 城 |
 
-注意：cron 用的是主机本地时间。站点机 UTC+7 的 15:00 = 北京 16:00；要按北京时间对齐请写 `CRON_TZ=Asia/Shanghai`。
+注意：cron 用主机本地时间。站点机 UTC+7 的 15:00 = 北京 16:00；要按北京时间对齐，在 crontab 顶部加 `CRON_TZ=Asia/Shanghai`。
 
 ## 九、卫星城合并规则
 

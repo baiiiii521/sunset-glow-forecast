@@ -59,19 +59,25 @@
   function fetchJSON(url, timeoutMs, attempt) {
     attempt = attempt || 0;
     var alt = fallbackOf(url);
-    var DIRECT_MS = Math.min(timeoutMs || 30000, 8000);
+    // 有代理时直连只等 8s（超时就切代理）；没有代理时用调用方给的完整超时
+    var DIRECT_MS = alt ? Math.min(timeoutMs || 30000, 8000) : (timeoutMs || 30000);
     var now = Date.now();
     var directFirst = !(alt && now < _directDownUntil);
 
     function viaProxy() {
       if (!alt) return Promise.reject(new Error('无可用代理'));
-      return rawFetch(alt, timeoutMs || 30000);
+      return rawFetch(alt, timeoutMs || 30000).catch(function (e) {
+        // 代理也挂了：清掉熔断窗口，回头再试一次直连（可能是代理侧故障）
+        _directDownUntil = 0;
+        if (!directFirst) return rawFetch(url, DIRECT_MS);
+        throw e;
+      });
     }
     function viaDirect() {
       return rawFetch(url, DIRECT_MS).catch(function (e) {
         if (alt) {
-          // 直连不可用：60 秒内后续请求直接走代理
-          _directDownUntil = Date.now() + 60000;
+          // 只有限流/超时才熔断 60s；其它错误换代理也会失败，不动窗口
+          if (e.code === 429 || e.code === 'TIMEOUT') _directDownUntil = Date.now() + 60000;
           return viaProxy();
         }
         // 没有代理时才退避重试
@@ -229,7 +235,9 @@
 
   function fetchEnsemble(points, tz, days) {
     var url = ensembleURL(points, tz, days);
-    return fetchJSON(url).catch(function () {
+    return fetchJSON(url).catch(function (e) {
+      // 有兜底代理时 fetchJSON 内部已经切过一次，不再整轮重试；没有代理才等 1.5s 再来一次
+      if (FC_FALLBACK) throw e;
       return new Promise(function (r) { setTimeout(r, 1500); }).then(function () { return fetchJSON(url); });
     }).then(function (j) { return Array.isArray(j) ? j : [j]; }).catch(function () { return null; });
   }

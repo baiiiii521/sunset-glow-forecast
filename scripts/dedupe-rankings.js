@@ -27,15 +27,8 @@ function clean(list) {
     if (out.some((k) => norm(k.city.name) === norm(r.city.name) && haversine(k.city, r.city) < 20)) continue;
     out.push(r);
   }
-  out.sort((a, b) => b.score - a.score);
-  // 60km 内并入母城（按分数优先，避免把高分城删掉）
-  const kept = [];
-  for (const r of out) {
-    const near = kept.find((k) => haversine(k.city, r.city) < 60);
-    if (near) continue;
-    kept.push(r);
-  }
-  return kept;
+  // 只做同名去重；卫星城合并是 build-rankings-v3 的职责（它有人口数据），这里不重复实现
+  return out.sort((a, b) => b.score - a.score);
 }
 
 const g = clean(all.global || []);

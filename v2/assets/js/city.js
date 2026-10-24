@@ -32,6 +32,12 @@
     var d = state.data;
     if (!d) return;
     var now = Date.now();
+    if (!d.events || !d.events.length) {
+      $('#tdCap').textContent = '这段时间没有可评分的场次（极昼/极夜或无日落）';
+      $('#todayRow').innerHTML = '<div class="tcard big"><div class="lab">无场次</div>' +
+        '<div class="tscore">--<span>/100</span></div><div class="tgrade">换个日期或地点试试</div></div>';
+      return;
+    }
     var ev = d.events.filter(function (e) { return e.epoch > now - 20 * 60000; })[0] || d.events[0];
     var lv = ev.level != null ? ev.level : G.band(ev.score);
     var win = API.viewingWindow ? API.viewingWindow(ev.epoch, ev.type === 'sunset', d.offsetSec).replace('约 ', '') : '—';
@@ -198,9 +204,9 @@
           el.textContent = (stale ? '榜单已过期（生成于 ' + stamp + '）' : '今日霞榜在榜') +
             ' · 第 ' + rank + ' 名 · ' + rec.score + ' 分';
         } else {
-          el.className = 'board-badge live';
-          el.textContent = '该城市不在今日霞榜 · 已按实时数据现算（取数 ' +
-            G.fmtTime(fetchedAt, offset) + '）' + (stamp ? ' · 榜单生成 ' + stamp : '');
+          el.className = 'board-badge live' + (stale ? ' stale' : '');
+          el.textContent = (stale ? '榜单已过期（生成于 ' + stamp + '）' : '该城市不在今日霞榜') +
+            ' · 已按实时数据现算（取数 ' + G.fmtTime(fetchedAt, offset) + '）';
         }
       }).catch(function () {
         el.className = 'board-badge live';
@@ -214,8 +220,8 @@
     G.snapshotFor(place.name, place.lat, place.lon).then(function (snap) {
       if (!snap || state.data) return;
       var r = snap.row, lv = r.level != null ? r.level : G.band(r.score);
-      var ageH = (Date.now() - snap.computedAt) / 3600e3;
-      var stampTxt = G.stamp(snap.computedAt) + (ageH > 24 ? '（' + Math.round(ageH) + ' 小时前，可能已过期）' : '');
+      var ageH = (Date.now() - snap.computedAt) / 3600e3;   // 与榜单同口径：>36h 视为过期
+      var stampTxt = G.stamp(snap.computedAt) + (ageH > 36 ? '（' + Math.round(ageH) + ' 小时前，可能已过期）' : '');
       $('#tdCap').textContent = '快照 ' + stampTxt + ' · 单模式粗算 · 正在获取实时数据…';
       $('#todayRow').innerHTML =
         '<div class="tcard big" style="--c:' + gradeColor(lv) + '">' +
@@ -244,7 +250,7 @@
         var r = snap.row, lv = r.level != null ? r.level : G.band(r.score);
         var ageH2 = (Date.now() - snap.computedAt) / 3600e3;
         $('#tdCap').textContent = '接口不可用 · 快照 ' + G.stamp(snap.computedAt) +
-          (ageH2 > 24 ? '（' + Math.round(ageH2) + ' 小时前，可能已过期）' : '') + ' · 单模式粗算';
+          (ageH2 > 36 ? '（' + Math.round(ageH2) + ' 小时前，可能已过期）' : '') + ' · 单模式粗算';
         $('#todayRow').innerHTML = '<div class="tcard big" style="--c:' + gradeColor(lv) + '">' +
           '<div class="lab">快照 · ' + (r.day === 'today' ? '今天' : '明天') + '</div>' +
           '<div class="tscore">' + r.score + '<span>/100</span></div>' +
