@@ -4,11 +4,11 @@
 
 **Sunrise and sunset glow predictions for anywhere on Earth, built on atmospheric optics and live numerical weather data.**
 
-[![Live Demo](https://img.shields.io/badge/live%20demo-glow.nybbq.art-FF6A2C?style=flat-square)](https://glow.nybbq.art/) [![License: MIT](https://img.shields.io/badge/license-MIT-2EA44F?style=flat-square)](LICENSE) [![Vanilla JS](https://img.shields.io/badge/stack-vanilla%20JS-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript) [![No build](https://img.shields.io/badge/build-none-3FA66A?style=flat-square)](#quick-start) [![Data](https://img.shields.io/badge/data-Open--Meteo%20%2B%20CAMS-4C8BF5?style=flat-square)](https://open-meteo.com/)
+[![Live Demo](https://img.shields.io/badge/live%20demo-glow.byb521.com-FF6A2C?style=flat-square)](https://glow.byb521.com/) [![License: MIT](https://img.shields.io/badge/license-MIT-2EA44F?style=flat-square)](LICENSE) [![Vanilla JS](https://img.shields.io/badge/stack-vanilla%20JS-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript) [![No build](https://img.shields.io/badge/build-none-3FA66A?style=flat-square)](#quick-start) [![Data](https://img.shields.io/badge/data-Open--Meteo%20%2B%20CAMS-4C8BF5?style=flat-square)](https://open-meteo.com/)
 
 [简体中文](README.md) · **English**
 
-<a href="https://glow.nybbq.art/"><img src="docs/assets/hero.jpg" alt="Xiá · Global Glow Forecast" width="100%"></a>
+<a href="https://glow.byb521.com/"><img src="docs/assets/hero.jpg" alt="Xiá · Global Glow Forecast" width="100%"></a>
 
 <sub>Mexico City · tonight's sunset glow, 87 / 100 (Major) · screenshot from the live site; the interface is in Chinese</sub>
 
@@ -126,7 +126,7 @@ cd sunset-glow-forecast
 
 # either
 open index.html                  # open the file directly
-python3 -m http.server 8000      # or serve it statically (recommended)
+
 ```
 
 Then open <http://localhost:8000>. There is no `npm install` and no build step.
@@ -211,6 +211,31 @@ The free tier allows 600 calls per minute and 10,000 per day; check the official
 - Expand the Glow Board to district level, add a sunrise board, and render a national heatmap.
 - Bring the ENS-51 distribution and the physical illumination curve into the web app, replacing the illustrative timeline curve.
 - Add `parity` and `stamp-assets --check` to CI.
+
+
+## What's new (2026-10-24)
+
+The site is now three pages served from the repository root: **Tonight** (`/`), **City** (`/city.html`) and **Board** (`/board.html`),
+with a `⌘K` search overlay (2,850 Chinese county-level points + 2,024 world cities), remembered location across pages,
+and a fully re-laid-out mobile experience.
+
+Algorithm fixes in the same release (v2.3):
+
+- **Curtain overlap**: mid + high cloud were simply added, double-counting overlap. Now composited as `1−(1−m)(1−h)`
+  (60% high + 40% mid = 76%, not 100%).
+- **No more cliff at zero**: a key factor at 0 used to drop the score from 37 to 0 between 99% and 100% low cloud.
+  Replaced with a linear ramp below 10 — continuous and monotonic.
+- **Precipitation hour**: Open-Meteo's `precipitation` is the *preceding hour*; a 17:44 sunset was reading 16:00–17:00.
+  Now uses the bucket that actually covers the event.
+- **Confidence weighting**: the score is a weighted mean (best_match ×3) but agreement was counted per model.
+  Agreement is now weighted as well, and "confidence" and "model agreement" are shown as separate numbers.
+- **Level from the displayed score**: 64.6 used to show as 65 while still labelled one tier lower.
+
+Ranking pipeline: two-stage coarse → refine, with the coarse head sampled at 3× the final slot count.
+`scripts/measure-coarse-recall.js` replays sampling and shows coarse top-5 covers only 60% of the true top-5
+when the head is sized 1:1.
+
+See `docs/changelog-2026-10-24.md` (Chinese) and `docs/algo-review-2026-10-24.md` for the full record.
 
 ## Acknowledgements
 

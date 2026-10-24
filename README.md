@@ -4,11 +4,11 @@
 
 **基于大气光学文献与实时数值天气预报，预测全球任意地点的朝霞与晚霞。**
 
-[![Live Demo](https://img.shields.io/badge/live%20demo-glow.nybbq.art-FF6A2C?style=flat-square)](https://glow.nybbq.art/) [![License: MIT](https://img.shields.io/badge/license-MIT-2EA44F?style=flat-square)](LICENSE) [![Vanilla JS](https://img.shields.io/badge/stack-vanilla%20JS-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript) [![No build](https://img.shields.io/badge/build-none-3FA66A?style=flat-square)](#快速开始) [![Data](https://img.shields.io/badge/data-Open--Meteo%20%2B%20CAMS-4C8BF5?style=flat-square)](https://open-meteo.com/)
+[![Live Demo](https://img.shields.io/badge/live%20demo-glow.byb521.com-FF6A2C?style=flat-square)](https://glow.byb521.com/) [![License: MIT](https://img.shields.io/badge/license-MIT-2EA44F?style=flat-square)](LICENSE) [![Vanilla JS](https://img.shields.io/badge/stack-vanilla%20JS-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript) [![No build](https://img.shields.io/badge/build-none-3FA66A?style=flat-square)](#快速开始) [![Data](https://img.shields.io/badge/data-Open--Meteo%20%2B%20CAMS-4C8BF5?style=flat-square)](https://open-meteo.com/)
 
 **简体中文** · [English](README.en.md)
 
-<a href="https://glow.nybbq.art/"><img src="docs/assets/hero.jpg" alt="霞 · 全球火烧云预报" width="100%"></a>
+<a href="https://glow.byb521.com/"><img src="docs/assets/hero.jpg" alt="霞 · 全球火烧云预报" width="100%"></a>
 
 <sub>墨西哥城 · 今晚晚霞 87 / 100（大烧）· 截图来自线上版本</sub>
 
@@ -41,21 +41,35 @@
 | **通透度 1–7** | AOD、能见度、PM2.5、露点差单独评分，与云况分开呈现 |
 | **可核对** | 11 项因子、权重、模式分歧与科学原理全部折叠在「为什么这样判断？」中 |
 
-### 界面
+### 界面（v2，三个页面）
 
-- **天幕即界面**：首屏天空、云底光照、太阳与水面倒影都由当前场次的评分驱动。云层用 SVG 分形噪声与自下而上的漫射光生成，铺在透视平面上。
-- **天色时间轴**：以选中场次为中心前后 2.5 小时，可拖动或自动播放；按真实太阳高度角划分白昼、金色时刻、火烧云、蓝调时刻、浅黑、黑六段。
-- **大气剖面**：11 项因子按它们在大气中的高度排成层，缺数据的层明确标注「无数据」。
-- **首屏留白**：首次访问不预设城市；点击页面或「定位」后按 GPS → IP 的顺序定位一次，之后不再覆盖手动选择。
-- **收藏与缓存**：收藏地点、榜单缓存只写入浏览器 localStorage。
+| 页面 | 内容 |
+|---|---|
+| **今晚** `/` | 四场预报、六档天幕、天色时间轴、大气剖面、七日、霞榜预告 |
+| **城市** `/city.html` | 单城七天矩阵、三层云剖面、四个模式的分数、霞榜名次 |
+| **霞榜** `/board.html` | 世界图 + 中国图、双榜 TOP10、六档分布、城市检索 |
+
+- **天幕即界面**：六档分数对应六套实拍天幕（朝/晚各一套），随当前场次切换；淡入淡出，不做弹跳。
+- **天色时间轴**：以选中场次为中心前后 2.5 小时，可拖动、方向键逐格、空格播放；按真实太阳高度角划分六段天色。
+- **大气剖面**：11 项因子按大气高度排层，条长是该项得分，缺数据的层空心并退出加权——「不知道」不等于「不好」。
+- **位置记忆**：首次访问不预设城市；选过或定位过之后写入 localStorage，并在站内链接上带参数，从霞榜/城市页回首页不会退回空态。
+- **搜索**：⌘K / Ctrl-K 唤起浮层，中国 2,850 个区县点 + 全球 2,024 座城市，支持中文、拼音、英文名。
+- **移动端**：底部 tabbar、四场横滑吸附、矩阵横向滚动固定首列、触控目标 ≥44px。
 
 ### 霞榜
 
-每天北京时间 15:00，服务器运行 `scripts/build-rankings.js`，用与网页完全相同的算法批量计算全球 36 座、中国 34 座大城市的下一场晚霞，输出 `data/rankings.json`。页面直接读取这份静态文件：
+霞榜是两段式离线跑批（`scripts/build-rankings-v3.js`），用与网页完全相同的算法：
 
-- 访客不再各自发起约 350 次 API 请求；
-- 文件缺失或超过 36 小时，才回退到浏览器实时计算；
-- 按霞分排序，同分看置信度，并给出六档城市分布与全球坐标带。
+1. **粗筛**：30 个世界精选城市 + 约 500 个中国城市，跳过空气质量、只取一个模式，快速排一遍；
+2. **精算**：对粗筛头部放量 ×3 的城市（`--head-mult`）跑完整链路——四模式集合、空气质量、15 分钟窗口；
+3. **出榜**：按精算分排序，取前 30 写入 `data/rankings.json`（含全量 `rankings-all.json`）。
+
+放量 ×3 不是拍脑袋：`scripts/measure-coarse-recall.js` 抽样回放实测，粗筛只取「和名额一样多」时，
+前 5 名只覆盖精算真实前 5 的 60%、前 10 覆盖 80%。粗筛是过滤器，不是排名，必须留余量。
+
+- 榜单排的是「每座城市的下一次日落」：当地日落已过的城市排的是明天，页面会按实际口径显示「明天」并在行内标「明日」；
+- 15:00 轻量刷新只重算在榜城市，未重算到的条目标 `stale`，页面写明「前 N 名刚重算，其余 M 条沿用 X 时全量」；
+- 文件超过 36 小时，页面标「非今日」，不假装是当天数据。
 
 ### 命令行与自动化
 
@@ -80,7 +94,7 @@
 
 今明两天的同类事件方位角只差不到 0.5°，因此上游点共用一次请求。
 
-### 霞分 v2.2
+### 霞分 v2.3
 
 ```text
 key  = 幕布^0.50 × 缺口^0.30 × 低云^0.20          # 加权几何平均，0–100
@@ -88,7 +102,20 @@ air  = 降水 / 气溶胶 / 能见度 / PM2.5 / 露点差 / 风 / CAPE 的加权
 霞分 = key × (0.7 + 0.3 × air / 100) + 雨后洗净（0–5）
 ```
 
-- 霞时刻有降水：霞分封顶 34（最高微烧）。
+2026-10-24 修正的四处口径：
+
+- **幕布按随机重叠合成**：中云、高云是各自占天空的比例，直接相加会重复计算重叠部分。
+  改为 `1−(1−中)(1−高)`：60% 高云 + 40% 中云 = 76%，而不是 100%。
+- **关键项为 0 不再是断崖**：原来用 `max(s,1)` 再硬归零，低云 99% 给 37 分、100% 给 0 分。
+  现在 `s<10` 时按线性斜坡衰减，99% → 2.8、100% → 0，全程连续单调。
+- **降水对齐到正确的小时**：Open-Meteo 的 `precipitation` 是「前一小时」累计，
+  标在 17:00 的值覆盖 16–17 点。日落 17:44 要的是标在 18:00 的那格（v1 字段不动，只改 v2）。
+- **置信度按权重算**：分数是按权重（综合模式 ×3）加权平均，一致度也必须按权重算，
+  否则会出现「分数被高权重模式拉走、把握却显示高」。页面把「把握」和「成员一致」分开显示。
+
+其余口径不变：
+
+- 霞时刻有降水：霞分封顶 34（最高微烧）；关键项缺数据也封顶 34，不拿未知当利好。
 - 幕布额外乘 0.75–1.0 的「受光亮度」：同样云量下高云比中云更亮，AOD 越高越暗。
 - **缺口 v2** 只把上游低云 + 0.5 × 中云计算为挡光。照亮云底的光贴着地平线射来，高云（卷云）挡不住它。
 
@@ -103,7 +130,8 @@ air  = 降水 / 气溶胶 / 能见度 / PM2.5 / 露点差 / 风 / CAPE 的加权
 | 20–34 | 微烧 | 云边可能泛一点淡色 |
 | 0–19 | 无烧 | 云况不足，基本看不到 |
 
-置信度由四套模式的一致度决定：≥80% 的模式落在 ±1 档且极差 ≤30 为「高」，≥60% 为「中」，否则为「低」。
+置信度由四套模式的**加权**一致度决定：落在 ±1 档内的模式权重占比 ≥80% 且极差 ≤30 为「高」，≥60% 为「中」，否则为「低」。
+页面同时显示「成员一致 N%」和「最大相差 X 分」——把握是判断，一致度是分歧程度，两个概念不混用。
 
 ### 物理增强（v2.2，推送管线）
 
@@ -122,12 +150,13 @@ air  = 降水 / 气溶胶 / 能见度 / PM2.5 / 露点差 / 风 / CAPE 的加权
 git clone https://github.com/baiiiii521/sunset-glow-forecast.git
 cd sunset-glow-forecast
 
-# 任选其一
-open index.html                  # 直接打开
-python3 -m http.server 8000      # 或起一个静态服务器（推荐）
+# 任选其一（v2 在 v2/ 目录下）
+cd v2 && python3 -m http.server 8000   # 推荐：起静态服务器
 ```
 
-然后访问 <http://localhost:8000>。没有 `npm install`，也没有构建步骤。
+然后访问 <http://localhost:8000/>。没有 `npm install`，也没有构建步骤。
+
+> 本地要跑霞榜：`node scripts/build-rankings-v3.js --global 30 --china 500 --top 30 --out data/rankings.json`。
 
 > 页面直连 Open-Meteo。若同一网络频繁刷新触发 429，等一分钟再试。
 
@@ -135,26 +164,34 @@ python3 -m http.server 8000      # 或起一个静态服务器（推荐）
 
 ```text
 .
-├── index.html              页面骨架与 SVG 云层滤镜
-├── styles.css              样式、设计 token 与动效
-├── algo.js                 算法层：纯函数，浏览器与 Node 共用
-├── api.js                  数据层：Open-Meteo 请求、地点评估、批量计算
-├── app.js                  界面层：渲染、交互、定位、本地缓存
+├── v2/                         线上版本（三页纯静态）
+│   ├── index.html              今晚：四场 / 时间轴 / 剖面 / 七日 / 霞榜预告
+│   ├── city.html               城市：七天矩阵 / 云剖面 / 模式分数
+│   ├── board.html              霞榜：世界图 / 中国图 / 双榜 / 分布
+│   └── assets/
+│       ├── css/                tokens / base / p01 / city / board / mobile / fonts
+│       ├── js/                 glow(共享) / home / city / board / forecast(取数)
+│       ├── img/                world.svg / china.svg / sky/(6 档 × 朝晚)
+│       └── fonts/              Noto Serif SC 子集 + JetBrains Mono
+├── algo.js                     算法层：纯函数，浏览器与 Node 共用
+├── api.js                      数据层：Open-Meteo 请求、打分、集合
 ├── scripts/
-│   ├── build-rankings.js   每日霞榜 → data/rankings.json
-│   ├── stamp-assets.js     给 css/js 引用打内容哈希版本号
-│   ├── daily-push.js       文字版预报与推送载荷
-│   ├── jev.js              独立模型复核客户端
-│   ├── verify-rankings.js  霞榜逐城复核
-│   ├── daily_snapshot.py   预报 + METAR 实测数据集
-│   ├── verify_vs_metar.py  云量观测对照
-│   └── label.py / eval.py  人工标注与评估
-├── test/
-│   ├── parity.js           JS 与 Python 实现的逐项对照（离线）
-│   ├── search.js           地名搜索与同名消歧（联网）
-│   └── smoke.js            完整页面初始化（联网）
-├── docs/                   算法对比、交接文档与截图
-└── data/                   运行时数据，不入库
+│   ├── build-rankings-v3.js    霞榜：粗筛 → 精算 → 出榜（--refresh 支持轻量刷新）
+│   ├── build-snapshots.js      每小时快照（首屏秒开 + 429 兜底）
+│   ├── measure-coarse-recall.js 粗筛召回率回放（验证榜单会不会漏城）
+│   ├── test-rankings-schema.js 榜单数据契约测试
+│   ├── stamp-assets.js         给 css/js 引用打内容哈希版本号
+│   ├── build-china-map.py      中国地图 SVG（省级边界 + 南海附图 + 九段线）
+│   ├── build-world-cities.py   世界城市表（GeoNames → 中文名清洗）
+│   ├── fix-cn-names.py         榜单数据修补（中文名 / 等级自洽）
+│   ├── daily-push.js           文字版预报与推送载荷
+│   ├── daily_snapshot.py       预报 + METAR 实测数据集
+│   ├── verify_vs_metar.py      云量观测对照
+│   └── label.py / eval.py      人工标注与评估
+├── deploy/                     nginx 缓存代理、crontab、双机部署说明
+├── docs/                       设计参考图、复审记录、交付说明
+├── test/                       parity / search / smoke
+└── data/                       运行时数据，不入库
 ```
 
 依赖方向只有一条：`app.js → api.js → algo.js`。算法层不碰网络，数据层不碰 DOM，所以同一份 `algo.js` / `api.js` 可以直接在服务器上复用于霞榜。
@@ -162,23 +199,35 @@ python3 -m http.server 8000      # 或起一个静态服务器（推荐）
 ## 开发与测试
 
 ```bash
-node test/parity.js                  # 离线，必须 PASS
-node test/search.js                  # 联网
-node test/smoke.js                   # 联网，跑完整页面初始化
-node scripts/stamp-assets.js --check # 检查静态资源版本号是否过期
-node scripts/build-rankings.js data/rankings.json
+node test/parity.js                     # 离线：JS 与 Python 条件分逐项对照，必须 PASS
+node test/search.js                     # 联网
+node test/smoke.js                      # 联网，跑完整页面初始化
+node scripts/test-rankings-schema.js    # 榜单契约：字段、grade/level/score 自洽、排序、坐标重复、rankings-all
+node scripts/stamp-assets.js --check    # 检查 v2 三页的资源版本号是否过期
+node scripts/measure-coarse-recall.js --scope china --n 60 --k 5,10,20   # 粗筛召回率回放
 ```
 
 改过 `styles.css`、`app.js`、`algo.js` 或 `api.js` 之后，提交前必须运行 `node scripts/stamp-assets.js`，把内容哈希写回 `index.html`。
 
 ## 部署
 
-| 平台 | 步骤 |
-|---|---|
-| **GitHub Pages** | Settings → Pages → Deploy from a branch → `main` / `(root)` |
-| **Vercel** | 导入仓库，Framework Preset 选 `Other`，无需构建命令 |
-| **Netlify** | Publish directory 填 `.`，Build command 留空 |
-| **自有服务器** | 任意静态服务器托管仓库根目录；加一条 cron 每天生成 `data/rankings.json` |
+线上是两台机器分工（`deploy/README.md` 有完整命令）：
+
+| 机器 | 职责 | 定时任务 |
+|---|---|---|
+| **站点机**（2C2G，UTC+7） | 只发静态文件 + `/om/` 反向代理 | 无（不碰外部接口） |
+| **算力机**（Lighthouse，UTC+8） | 所有 Open-Meteo 取数、算榜、算快照 | `04:00` 全量 · `15:00` 轻量刷新 · `:07` 每小时快照 |
+
+算力机跑完 `scp` 把 `data/rankings.json`、`rankings-all.json`、`snapshots.json` 推到站点机。
+所有取数都走算力机的独立 IP——站点机的 IP 跑榜单会被限流（实测过「轻量刷新全部失败」）。
+
+访客侧取数顺序是**直连优先**：浏览器直连 `api.open-meteo.com`，只有 429/超时才回落 `/om/`
+（站点机 nginx → SSH 反向隧道 → 算力机的 cache-proxy）。这样常态零代理延迟，被限流时仍有兜底。
+
+静态资源缓存：`woff2/jpg/svg` 一年 immutable，`html` no-cache，`data/*.json` no-cache。
+
+也可以纯静态托管（GitHub Pages / Vercel / Netlify）：把 `v2/` 作为发布目录即可，
+但要自己解决霞榜 JSON 的生成与定时更新。
 
 ## 数据来源
 
@@ -194,21 +243,25 @@ node scripts/build-rankings.js data/rankings.json
 ## 准确性与局限
 
 - 这是一套**基于已发表文献的启发式模型**，不是官方气象预报。学界目前没有经过同行评审的「晚霞颜色指数」。
-- 六档阈值与几何权重只做过一次 1 天、39 个点的小样本交叉对比，尚未用实况校准；排序吻合不等于预报准确。
+- **六档阈值与几何权重尚未标定**：`data/glow-labels.jsonl` 目前只有 1 条人工标注。按自然频率估算，
+  要标定「大烧」这一档约需 250 条标注。在此之前不做权重调参，只做物理上可验证的修正。
+- 几何平均对单项偏宽容（低云 85% 仍可给 60 分）——是否改成幂平均（p≈−1~−2）需要数据支撑，暂不改。
+- 上游缺口的距离权重目前仍是 `1/(1+d/100)`，而按光路几何，真正挡光的低云在 200–450 km，
+  权重方向疑似相反；改动会影响所有城市，需回放验证后再上。
 - 真值数据仍在本地积累（`data/` 不入库）：`glow-dataset.jsonl` 记录每日预报与 METAR 实测，`glow-labels.jsonl` 记录人工标注。样本足够后会重新标定阈值与权重。
 - 缺数据时页面明确显示「无数据」，不做插值或猜测。
 - CAMS 为全球域（约 45 km、3 小时），局地精度有限。
 - 时间轴上的霞强度曲线是「评分 × 钟形时间窗」的示意，不是物理输出。
-- 霞榜覆盖 70 座大城市，尚不及区县级精度。
+- 霞榜覆盖 30 个世界城市 + 约 500 个中国城市（出榜各前 30），中国区县精度已到地级市/县级市。
 - 所有查询在浏览器端发出，不收集、不上传个人数据；收藏与缓存只存在本地。
 
 ## 后续方向
 
-- 用实况标注校准阈值、几何权重与模式权重，并补一个自动输出 AUC / 命中率的评估脚本。
-- 在服务器侧缓存代理 Open-Meteo，改善国内访问速度与额度。
-- 霞榜扩容到区县，增加朝霞榜与全国热力格点。
-- 把 ENS-51 概率分布与物理受光曲线接入网页，替换当前的示意时间曲线。
-- CI 增加 `parity` 与 `stamp-assets --check`。
+- 攒实拍标注（目标 30 个以上不同日期），再用有序逻辑回归标定阈值与权重；`scripts/eval.py` 已修好映射与同分处理。
+- 上游缺口改为光路几何权重：每个上游点算出光线离地高度 `z(d)=(√(2RH)−d)²/2R`，判断哪一层云在挡光，按透过率连乘。
+- 时间窗口从「最大值」改为物理峰值（日落后 10–20 分钟）的加权平均，且所有模式一视同仁。
+- 云的光学厚度代理：日落前 2–3 小时的直接辐射与晴空值之比、高层相对湿度。
+- CI 增加 `parity`、`test-rankings-schema` 与 `stamp-assets --check`。
 
 ## 致谢
 
