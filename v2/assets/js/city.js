@@ -10,8 +10,8 @@
   var q = new URLSearchParams(location.search);
   var place = {
     name: q.get('c') || '胡志明市',
-    lat: parseFloat(q.get('lat')) || 10.79,
-    lon: parseFloat(q.get('lon')) || 106.75
+    lat: Number.isFinite(parseFloat(q.get('lat'))) ? parseFloat(q.get('lat')) : 10.79,
+    lon: Number.isFinite(parseFloat(q.get('lon'))) ? parseFloat(q.get('lon')) : 106.75
   };
   var state = { week: null, idx: +(q.get('d') || 0), scope: 'all', data: null };
   var gradeColor = function (l) { return 'var(--lv' + l + ')'; };
@@ -53,7 +53,7 @@
     var w = state.week;
     if (!w) return;
     var rows = [
-      { k: 'sun', nm: '晚霞', get: function (d) { return d.sunset; } },
+      { k: 'sunset', nm: '晚霞', get: function (d) { return d.sunset; } },
       { k: 'sunrise', nm: '朝霞', get: function (d) { return d.sunrise; } }
     ].filter(function (r) { return state.scope === 'all' || state.scope === r.k; });
 
@@ -182,11 +182,12 @@
     if (!el) return;
     fetch('../data/rankings.json', { cache: 'no-store' }).then(function (r) { return r.json(); })
       .then(function (d) {
-        var all = (d.china || []).concat(d.global || []);
-        var hit = -1, rank = 0, rec = null;
-        for (var i = 0; i < all.length; i++) {
-          if (all[i].city && all[i].city.name === place.name) { hit = i; rec = all[i]; rank = i + 1; break; }
-        }
+        var rank = 0, rec = null;
+        ['china', 'global'].forEach(function (k) {
+          (d[k] || []).forEach(function (r, i) {
+            if (!rec && r.city && r.city.name === place.name) { rec = r; rank = i + 1; }
+          });
+        });
         var when = d.computedAt ? new Date(d.computedAt) : null;
         var stamp = when ? ((when.getMonth() + 1) + '-' + when.getDate() + ' ' +
           G.pad(when.getHours()) + ':' + G.pad(when.getMinutes())) : '';

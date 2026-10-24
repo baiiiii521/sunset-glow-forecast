@@ -116,3 +116,6 @@ h1,h2,h3,h4,p{margin:0}
   .reveal{opacity:1;transform:none}
   *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
+
+/* 移动端导航：桌面默认隐藏，mobile.css 里改为 flex */
+.tabbar{display:none}

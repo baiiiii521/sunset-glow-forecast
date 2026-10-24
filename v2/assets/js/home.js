@@ -12,6 +12,12 @@
   var state = { data: null, place: null, idx: 0, week: null, scope: 'global', tl: { t: 0, playing: false } };
 
   var gradeColor = function (level) { return 'var(--lv' + level + ')'; };
+  // 任何拼进 innerHTML 的外部字符串都必须过这里（城市名来自 URL 参数）
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
 
   /* ---------------- Hero ---------------- */
   function renderHero() {
@@ -20,8 +26,8 @@
     var level = ev.level != null ? ev.level : G.band(ev.score);
     var offset = d.offsetSec;
 
-    $('#heroWord').textContent = (ev.day === 'tomorrow' ? '明早' : (sunrise ? '今早' : '今晚'));
-    $('#placeLine').innerHTML = '<span>' + state.place.name + '</span>' +
+    $('#heroWord').textContent = ev.day === 'tomorrow' ? (sunrise ? '明早' : '明晚') : (sunrise ? '今早' : '今晚');
+    $('#placeLine').innerHTML = '<span>' + esc(state.place.name) + '</span>' +
       '<em>' + G.fmtDate(ev.epoch, offset) + '</em>' +
       '<em>' + Math.abs(state.place.lat).toFixed(2) + '°' + (state.place.lat >= 0 ? 'N' : 'S') + ' ' +
       Math.abs(state.place.lon).toFixed(2) + '°' + (state.place.lon >= 0 ? 'E' : 'W') + '</em>' +
@@ -337,7 +343,9 @@
         '</button>';
     }).join('');
 
-    var bestDay = d.days.filter(function (x) { return (x.sunset && x.sunset.score === best); })[0] || d.days[0];
+    var bestDay = d.days.filter(function (x) {
+      return (x.sunset && x.sunset.score === best) || (x.sunrise && x.sunrise.score === best);
+    })[0] || d.days[0];
     var lg = document.getElementById('weekLegend');
     if (lg) lg.innerHTML = '<span><i style="background:var(--lv3)"></i>晚霞（日落）</span><span><i style="background:var(--lv1);opacity:.75"></i>朝霞（日出）</span>';
     $('#weekNote').textContent = '最高 ' + best + ' 分 · ' +

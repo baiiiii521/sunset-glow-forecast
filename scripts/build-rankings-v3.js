@@ -115,17 +115,21 @@ function counts(list) {
         clarity: f.clarity || null, models: f.ensemble ? f.ensemble.members.map((m) => [m.label, m.score]) : null,
         epoch: f.epoch, offsetSec: f.offsetSec, tzName: f.tzName, day: f.day };
     });
+    const okN0 = fresh.filter(Boolean).length;
+    if (okN0 === 0) {
+      console.error(`${new Date().toISOString()} 轻量刷新全部失败，保留原榜单不动`);
+      return;
+    }
     const out = {
       ...cur,
-      computedAt: Date.now(),
-      refreshedAt: Date.now(),
-      stats: { global: counts(apply(cur.global || [])), china: counts(apply(cur.china || [])) },
+      refreshedAt: Date.now(),   // 不动 computedAt：避免把旧分数伪装成新榜单
+      stats: { global: { counts: counts(apply(cur.global || [])) }, china: { counts: counts(apply(cur.china || [])) } },
       global: apply(cur.global || []).sort((a, b) => b.score - a.score),
       china: apply(cur.china || []).sort((a, b) => b.score - a.score)
     };
     fs.writeFileSync(OUT + '.tmp', JSON.stringify(out));
     fs.renameSync(OUT + '.tmp', OUT);
-    const okN = fresh.filter(Boolean).length;
+    const okN = okN0;
     console.error(`${new Date().toISOString()} 轻量刷新完成：${okN}/${picks.length} 城重算`);
     console.log(`全球 #1 ${out.global[0].city.name} ${out.global[0].score}  中国 #1 ${out.china[0].city.name} ${out.china[0].score}`);
     return;
@@ -166,7 +170,8 @@ function counts(list) {
         const full = await API.evaluateNextSunset({ name: r.city.name, country: r.city.country, lat: r.city.lat, lon: r.city.lon });
         out.push(full);
       } catch (e) {
-        out.push(r);   // 精算失败就退回粗筛结果，不丢城市
+        // 精算失败：不把粗分混进榜单参与排名，只保留但不入选
+        out.push({ ...r, coarseOnly: true });
       }
     }
     return out;
@@ -174,8 +179,11 @@ function counts(list) {
   const [fineG, fineC] = await Promise.all([refine(headG), refine(headC)]);
   console.error(`${new Date().toISOString()} 精算完成：全球 ${fineG.length} / 中国 ${fineC.length}`);
 
-  const boardG = API.sortBoard(mergeSatellites(fineG));
-  const boardC = API.sortBoard(mergeSatellites(fineC));
+  const byScore = (list) => list
+    .filter((r) => !r.coarseOnly)              // 粗分不参与排名（口径不同，会系统性偏高）
+    .sort((a, b) => b.score - a.score);
+  const boardG = byScore(mergeSatellites(fineG));
+  const boardC = byScore(mergeSatellites(fineC));
   if (boardG.length < 5 || boardC.length < 5) {
     throw new Error(`有效城市太少（全球 ${boardG.length}、中国 ${boardC.length}），保留旧榜单`);
   }
@@ -191,7 +199,7 @@ function counts(list) {
     version: 3,
     computedAt: Date.now(),
     universe: { global: globalPool.length, china: chinaPool.length, refined: fineG.length + fineC.length },
-    stats: { global: counts(boardG), china: counts(boardC) },
+    stats: { global: { counts: counts(boardG) }, china: { counts: counts(boardC) } },
     global: boardG.slice(0, 10).map(slim),
     china: boardC.slice(0, 10).map(slim)
   };

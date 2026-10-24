@@ -10,17 +10,34 @@ if (!allPath || !outPath) { console.error('用法：node scripts/dedupe-rankings
 const norm = (n) => String(n || '').replace(/[市区县镇]$/, '').trim();
 const all = JSON.parse(fs.readFileSync(allPath, 'utf8'));
 
+const haversine = (a, b) => {
+  const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180;
+  const la1 = a.lat * Math.PI / 180, la2 = b.lat * Math.PI / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+
 function clean(list) {
   const seen = new Set();
   const out = [];
   for (const r of list) {
     if (!r || !r.city) continue;
+    // 粗分（精算失败回退的）不进榜：口径不同，会系统性偏高
+    if (!r.models || !r.models.length) continue;
     const k = norm(r.city.name) + '|' + Number(r.city.lat).toFixed(1);
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(r);
   }
-  return out.sort((a, b) => b.score - a.score || (b.conf === '高' ? 1 : 0) - (a.conf === '高' ? 1 : 0));
+  out.sort((a, b) => b.score - a.score);
+  // 60km 内并入母城（按分数优先，避免把高分城删掉）
+  const kept = [];
+  for (const r of out) {
+    const near = kept.find((k) => haversine(k.city, r.city) < 60);
+    if (near) continue;
+    kept.push(r);
+  }
+  return kept;
 }
 
 const g = clean(all.global || []);
@@ -35,7 +52,7 @@ const payload = {
   version: 3,
   computedAt: all.computedAt,
   universe: { global: g.length, china: c.length, refined: g.length + c.length },
-  stats: { global: counts(g), china: counts(c) },
+  stats: { global: { counts: counts(g) }, china: { counts: counts(c) } },
   global: g.slice(0, 10),
   china: c.slice(0, 10)
 };
