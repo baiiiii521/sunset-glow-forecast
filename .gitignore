@@ -3,3 +3,7 @@ data/
 
 # v2 构建产物
 !v2/assets/fonts/
+
+# macOS
+.DS_Store
+**/.DS_Store
