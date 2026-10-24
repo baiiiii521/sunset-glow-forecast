@@ -119,9 +119,10 @@
       var lv = c.level != null ? c.level : G.band(c.score);
       var t = '';
       try { t = G.fmtTime(c.epoch, c.offsetSec); } catch (e) {}
+      var dm = c.day === 'tomorrow' ? '<i class="dm">明日</i>' : '';
       return '<a class="brow" href="' + cityHref(c.city) + '">' +
         '<span class="rk">' + G.pad(i + 1) + '</span>' +
-        '<span class="nm">' + c.city.name + '<em>' + (c.city.country || '') + '</em></span>' +
+        '<span class="nm">' + c.city.name + dm + '<em>' + (c.city.country || '') + '</em></span>' +
         '<span class="tt">' + t + '</span>' +
         '<span class="sc" style="color:' + gcolor(lv) + '">' + c.score + '</span></a>';
     }).join('');
@@ -142,7 +143,21 @@
       if (stale) bn.textContent = '这份榜单生成于 ' + (when.getMonth() + 1) + ' 月 ' + when.getDate() + ' 日，不是今天的预报——页面照实展示，不假装是今日数据。';
     }
 
-    $('#mapList').innerHTML = rows((d[state.scope] || []).slice(0, 10));
+    // 榜单排的是「下一次日落」：当地日落已过的城市，排的是明天。标题按实际情况写，不硬说今天
+    var scopeList = (d[state.scope] || []).slice(0, 10);
+    var tmw = scopeList.filter(function (c) { return c.day === 'tomorrow'; }).length;
+    var h1 = document.getElementById('boardH1');
+    var note = document.getElementById('boardDayNote');
+    if (h1) {
+      if (scopeList.length && tmw === scopeList.length) h1.innerHTML = '明天，<br>哪里最可能烧。';
+      else h1.innerHTML = '今天，<br>哪里最可能烧。';
+    }
+    if (note) {
+      note.textContent = !scopeList.length ? '' :
+        (tmw === scopeList.length ? '这些城市今天的日落都已过去，榜上排的是明天的日落。' :
+         tmw ? '其中 ' + tmw + ' 座城市今天的日落已过，排的是明天的（行内标「明日」）。' : '');
+    }
+    $('#mapList').innerHTML = rows(scopeList);
     $('#cnList').innerHTML = rows((d.china || []).slice(0, 5));
     $('#glList').innerHTML = rows((d.global || []).slice(0, 5));
 

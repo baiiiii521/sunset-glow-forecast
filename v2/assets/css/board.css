@@ -78,3 +78,5 @@
   background:rgba(255,195,107,.10);border-top:1px solid rgba(255,195,107,.3);border-bottom:1px solid rgba(255,195,107,.3);
   font-size:12px;color:var(--gold);line-height:1.6}
 .map-hint{display:none}
+.brow .nm .dm{font-style:normal;font-size:10px;letter-spacing:.06em;padding:1px 5px;margin-left:6px;
+  border:1px solid rgba(255,195,107,.45);color:var(--gold);border-radius:3px;vertical-align:1px}
