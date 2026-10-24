@@ -71,7 +71,7 @@
         '</div>' +
         [['最佳窗口', pwin], [picked.type === 'sunrise' ? '日出' : '日落', G.fmtTime(picked.epoch, d.offsetSec)],
          ['方位', Math.round(picked.bearing || 0) + '°'], ['通透', (picked.clarity && picked.clarity.score) || '—'],
-         ['把握', picked.conf || '—'], ['模式', (((picked.ensemble && picked.ensemble.members) || []).length || '—') + ' 个']]
+         ['把握', picked.conf || '—'], ['成员一致', (picked.ensemble && picked.ensemble.agreePct != null) ? picked.ensemble.agreePct + '%' : '—'], ['模式', (((picked.ensemble && picked.ensemble.members) || []).length || '—') + ' 个']]
           .map(function (r) { return '<div class="tcard"><div class="lab">' + r[0] + '</div><div class="tv">' + r[1] + '</div></div>'; }).join('');
       G.setSky(plv, picked.type === 'sunrise', true);
       return;
@@ -96,6 +96,7 @@
       '</div>' +
       [['最佳窗口', win], [ev.type === 'sunrise' ? '日出' : '日落', G.fmtTime(ev.epoch, d.offsetSec)], ['方位', Math.round(ev.bearing || 0) + '°'],
        ['通透', (ev.clarity && ev.clarity.score) || '—'], ['把握', ev.conf || '—'],
+       ['成员一致', (ev.ensemble && ev.ensemble.agreePct != null) ? ev.ensemble.agreePct + '%' : '—'],
        ['模式', (((ev.ensemble && ev.ensemble.members) || []).length || '—') + ' 个']]
         .map(function (r) { return '<div class="tcard"><div class="lab">' + r[0] + '</div><div class="tv">' + r[1] + '</div></div>'; }).join('');
     G.setSky(lv, ev.type === 'sunrise', true);

@@ -30,6 +30,10 @@ function arg(name, def) {
 const N_GLOBAL = arg('global', 600);
 const N_CHINA = arg('china', 400);
 const TOP_K = arg('top', 60);
+// 粗筛是「过滤器」不是「排名」：只筛出和最终名额一样多的城市，等于零余量。
+// 实测（scripts/measure-coarse-recall.js，60 城抽样）：粗筛前 5 只覆盖精算前 5 的 60%，
+// 前 10 覆盖 80%，前 20 覆盖 90%。所以这里按倍数放量，再靠精算收敛。
+const HEAD_MULT = arg('head-mult', 3);
 const REFRESH = arg('refresh', 0);   // >0：只重算现有榜单前 N 名（15:00 轻量刷新）
 const OUT = arg('out', '') || path.join(ROOT, 'data', 'rankings.json');
 
@@ -186,8 +190,8 @@ function counts(list) {
   console.error(`${new Date().toISOString()} 粗筛完成：全球 ${okG.length} / 中国 ${okC.length}（失败 ${roughG.length - okG.length + roughC.length - okC.length}）`);
 
   // ---- 第二段：头部精算（完整集合） ----
-  const headG = API.sortBoard(okG).slice(0, TOP_K);
-  const headC = API.sortBoard(okC).slice(0, TOP_K);
+  const headG = API.sortBoard(okG).slice(0, TOP_K * HEAD_MULT);
+  const headC = API.sortBoard(okC).slice(0, TOP_K * HEAD_MULT);
   const refine = async (list) => {
     const out = [];
     for (const r of list) {
@@ -202,7 +206,7 @@ function counts(list) {
     return out;
   };
   const [fineG, fineC] = await Promise.all([refine(headG), refine(headC)]);
-  console.error(`${new Date().toISOString()} 精算完成：全球 ${fineG.length} / 中国 ${fineC.length}`);
+  console.error(`${new Date().toISOString()} 精算完成：全球 ${fineG.length} / 中国 ${fineC.length}（粗筛放量 ×${HEAD_MULT}）`);
 
   const byScore = (list) => list
     .filter((r) => !r.coarseOnly)                       // 粗分不参与排名

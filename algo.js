@@ -432,12 +432,13 @@
 
     // v2：条件分只回答「条件好不好」，霞分再回答「会不会烧起来」
     var g = glow(comps);
-    var lv = levelOf(g);
+    var shown = pyRound(g);          // 页面看到的是四舍五入后的分数，等级必须跟它一致
+    var lv = levelOf(shown);
     var cl = clarityOf(aod, vis, pm, (temp === null || temp === undefined || dew === null || dew === undefined) ? null : temp - dew);
 
     return {
       // v2 结果（页面展示用）
-      score: pyRound(g),
+      score: shown,
       rawScore: g,
       probability: scoreToProb(g),
       level: lv,
@@ -557,18 +558,27 @@
     ok.forEach(function (m) { var w = m.weight || 1; tw += w; ts += w * m.res.rawScore; });
     var mean = ts / tw;
     var rep = ok.slice().sort(function (a, b) { return Math.abs(a.res.rawScore - mean) - Math.abs(b.res.rawScore - mean); })[0];
-    var lv = levelOf(mean);
+    var shownMean = pyRound(mean);   // 同理：等级按展示分数算
+    var lv = levelOf(shownMean);
     var near = ok.filter(function (m) { return Math.abs(levelOf(m.res.rawScore) - lv) <= 1; }).length;
     var good = ok.filter(function (m) { return m.res.rawScore >= 50; }).length;
     var spread = scores[n - 1] - scores[0];
+    // 一致度要和分数用同一套权重：分数是按权重加权平均，一致度若按成员个数算，
+    // 一个高权重模式跑偏时会出现「分数被它拉走、把握却显示高」的矛盾。
+    var nearW = 0;
+    ok.forEach(function (m) {
+      if (Math.abs(levelOf(m.res.rawScore) - lv) <= 1) nearW += (m.weight || 1);
+    });
+    var agreeW = tw ? nearW / tw : 0;          // 加权一致度 0–1
+    var agreePct = Math.round(agreeW * 100);
     var conf;
     if (n < 3) conf = rep.res.conf;
-    else if (near / n >= 0.8 && spread <= 30) conf = '高';
-    else if (near / n >= 0.6) conf = '中';
+    else if (agreeW >= 0.8 && spread <= 30) conf = '高';
+    else if (agreeW >= 0.6) conf = '中';
     else conf = '低';
     var out = {};
     for (var k in rep.res) if (Object.prototype.hasOwnProperty.call(rep.res, k)) out[k] = rep.res[k];
-    out.score = pyRound(mean);
+    out.score = shownMean;
     out.rawScore = mean;
     out.probability = scoreToProb(mean);
     out.level = lv;
@@ -577,6 +587,11 @@
     out.repModel = rep.label;
     out.ensemble = {
       n: n, good: good, near: near, spread: pyRound(spread),
+      // 两个口径分开给：agreePct 是「按权重算的一致度」，nearPct 是「按成员个数算的一致度」
+      agreePct: agreePct,
+      nearPct: Math.round(100 * near / n),
+      weightSum: pyRound(tw),
+      agreeBasis: 'weighted',
       members: ok.map(function (m) { return { model: m.model, label: m.label, score: m.res.score, grade: m.res.grade }; })
     };
     return out;

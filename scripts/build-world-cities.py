@@ -7,7 +7,8 @@
 中文名取自 GeoNames 的 alternatenames 字段（含各国语言别名），不手写、不猜。
 人口门槛默认 30 万；国家代码由前端用 Intl.DisplayNames 转中文。
 """
-import json, os, re, zipfile, sys
+import json
+import re, os, re, zipfile, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ZIP = os.path.join(ROOT, "scripts", "data", "cities15000.zip")
@@ -40,6 +41,27 @@ def pick_zh(alt, name):
     return zh[0]
 
 
+
+# GeoNames 的中文别名里会混进日文写法（仏山/横浜/ウルムチ市），生成时必须清掉
+JP_FIX = {"仏":"佛","浜":"滨","沢":"泽","竜":"龙","鉄":"铁","豊":"丰","桜":"樱",
+          "駅":"驿","県":"县","広":"广","辺":"边","変":"变","図":"图","対":"对",
+          "経":"经","気":"气","応":"应","悪":"恶","圧":"压","囲":"围","売":"卖",
+          "読":"读","転":"转","軽":"轻","実":"实","戦":"战","険":"险","検":"检",
+          "験":"验","権":"权","観":"观","歓":"欢","歯":"齿","歳":"岁","歴":"历",
+          "暦":"历","薬":"药","様":"样"}
+KANA_RE = re.compile(r"[\u3040-\u30ff]")
+
+
+def clean_zh(zh):
+    """日文新字体 → 简体；含假名的名字直接丢弃（宁可退回英文，也不显示日文）。"""
+    if not zh:
+        return zh
+    zh = "".join(JP_FIX.get(ch, ch) for ch in zh)
+    if KANA_RE.search(zh):
+        return ""
+    return zh
+
+
 def main():
     if not os.path.exists(ZIP):
         raise SystemExit("缺少 cities15000.zip，先下载到 scripts/data/")
@@ -59,7 +81,7 @@ def main():
                 lat, lon = float(f[4]), float(f[5])
                 if not (-90 <= lat <= 90 and -180 <= lon <= 180):
                     continue
-                zh = pick_zh(f[3], f[1])
+                zh = clean_zh(pick_zh(f[3], f[1]))
                 rows.append({
                     "zh": zh, "en": f[1], "cc": f[8],
                     "lat": round(lat, 4), "lon": round(lon, 4), "pop": pop,

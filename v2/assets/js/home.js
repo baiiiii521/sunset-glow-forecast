@@ -56,8 +56,11 @@
 
     var ens = ev.ensemble || {};
     var clarity = ev.clarity || { name: '—', score: '—' };
+    var agree = (ens.agreePct == null) ? '—'
+      : (ens.agreePct < 40 ? '分歧大' : (ens.agreePct + '%'));
     var chips = [
       ['把握', ev.conf || '—', ''],
+      ['成员一致', agree, ''],      // 与「把握」分开：把握是判断，一致度是模式间的分歧程度
       ['通透', String(clarity.score), clarity.name],
       ['模式', (ens.members || []).length ? (ens.members.length + ' 个') : '—', ''],
       ['方位', Math.round(ev.bearing || 0) + '°', '']
@@ -316,7 +319,10 @@
       });
     });
     $('#pfRows').innerHTML = html;
-    var rep = ev.repModel ? '<div class="row gap12 center" style="margin-top:6px"><span class="small" style="font-size:12px;color:var(--veil)">分项取自代表模式：' + esc(ev.repModel) + '</span></div>' : '';
+    var rep = ev.repModel ? '<div class="row gap12 center" style="margin-top:6px"><span class="small" style="font-size:12px;color:var(--veil)">分项取自代表模式：' + esc(ev.repModel) + '</span></div><div class="row gap12 center" style="margin:2px 0 10px"><span class="small" style="font-size:12px;color:var(--veil)">' +
+        '成员一致 ' + ((ev.ensemble && ev.ensemble.agreePct != null) ? (ev.ensemble.agreePct + '%') : '—') +
+        '（' + ((ev.ensemble && ev.ensemble.members || []).length) + ' 个模式，最大相差 ' + ((ev.ensemble && ev.ensemble.spread != null) ? ev.ensemble.spread : '—') + ' 分）' +
+        '</span></div>' : '';
     $('#pfLegend').innerHTML = rep + [
       ['门控 0.5 / 0.3 / 0.2 · 几何加权', 'var(--ember)'],
       ['空气项 ×0.7–1.0 调制', 'var(--mist)'],

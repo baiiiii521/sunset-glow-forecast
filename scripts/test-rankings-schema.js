@@ -10,6 +10,8 @@ const path = require('path');
 
 const file = process.argv[2] || path.join(__dirname, '..', 'data', 'rankings.json');
 const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+const Algo = require(path.join(__dirname, '..', 'algo.js'));
+const LEVELS = Algo.LEVELS, levelOf = Algo.levelOf;
 
 const fails = [];
 const ok = (cond, msg) => { if (!cond) fails.push(msg); };
@@ -41,6 +43,11 @@ const need = ['city', 'score', 'grade', 'level', 'epoch', 'offsetSec', 'tzName']
     ok(r.level >= 0 && r.level <= 5, `${k}[${i}] level 越界`);
     // 精算过的条目必须带 4 个模式的分数；粗分混进来会让排序失真
     ok(Array.isArray(r.models) && r.models.length >= 1, `${k}[${i}] (${r.city.name}) 没有 models，疑似粗分混入榜单`);
+    // 等级文案、等级序号、分数三者必须自洽（页面直接拿 level 取颜色、拿 grade 出字）
+    ok(LEVELS[r.level] && LEVELS[r.level].name === r.grade,
+      `${k}[${i}] (${r.city.name}) grade「${r.grade}」与 level ${r.level} 不匹配（应为 ${LEVELS[r.level] && LEVELS[r.level].name}）`);
+    ok(levelOf(r.score) === r.level,
+      `${k}[${i}] (${r.city.name}) score ${r.score} 落在 level ${levelOf(r.score)}，但条目写的是 level ${r.level}`);
   });
 });
 
@@ -53,13 +60,54 @@ const need = ['city', 'score', 'grade', 'level', 'epoch', 'offsetSec', 'tzName']
 
 // 同一榜内不应出现同名同坐标
 ['global', 'china'].forEach((k) => {
-  const seen = new Set();
+  const seen = new Set(), coords = new Set();
   d[k].forEach((r) => {
     const key = String(r.city.name).replace(/[市区县镇]$/, '') + '|' + r.city.lat.toFixed(1);
     ok(!seen.has(key), `${k} 重复城市：${r.city.name}`);
     seen.add(key);
+    const ck = r.city.lat.toFixed(3) + ',' + r.city.lon.toFixed(3);
+    ok(!coords.has(ck), `${k} 重复坐标：${r.city.name} @ ${ck}`);
+    coords.add(ck);
   });
 });
+
+// stats 的分档计数必须和实际条目对得上（榜单被 slice 到 TOP 时，计数可以更大，但不能更小或漏档）
+['global', 'china'].forEach((k) => {
+  const st = d.stats && d.stats[k];
+  if (!st || !Array.isArray(st.counts)) return;
+  const sum = st.counts.reduce((a, b) => a + b, 0);
+  ok(sum >= d[k].length, `stats.${k}.counts 合计 ${sum} < 实际条目 ${d[k].length}`);
+  const real = [0, 0, 0, 0, 0, 0];
+  d[k].forEach((r) => { real[r.level] += 1; });
+  for (let i = 0; i < 6; i++) {
+    ok(st.counts[i] >= real[i], `stats.${k}.counts[${i}] = ${st.counts[i]}，但榜里有 ${real[i]} 条`);
+  }
+});
+
+// rankings-all.json：全量结果也要符合同一套契约（前端详情页会读）
+const allFile = path.join(path.dirname(file), 'rankings-all.json');
+if (fs.existsSync(allFile)) {
+  const a = JSON.parse(fs.readFileSync(allFile, 'utf8'));
+  ok(a.version >= 2, 'rankings-all.version 缺失或过旧');
+  ok(typeof a.computedAt === 'number', 'rankings-all.computedAt 不合法');
+  ['global', 'china'].forEach((k) => {
+    ok(Array.isArray(a[k]) && a[k].length > 0, `rankings-all.${k} 为空`);
+    (a[k] || []).forEach((r, i) => {
+      need.forEach((f) => ok(r[f] !== undefined && r[f] !== null, `rankings-all.${k}[${i}] 缺字段 ${f}`));
+      ok(LEVELS[r.level] && LEVELS[r.level].name === r.grade,
+        `rankings-all.${k}[${i}] (${r.city && r.city.name}) grade/level 不一致`);
+      ok(levelOf(r.score) === r.level, `rankings-all.${k}[${i}] score 与 level 不一致`);
+    });
+    for (let i = 1; i < (a[k] || []).length; i++) {
+      ok(a[k][i - 1].score >= a[k][i].score, `rankings-all.${k} 未按分数降序`);
+    }
+    // 全量必须覆盖榜单里的城市
+    const inAll = new Set((a[k] || []).map((r) => r.city.name));
+    (d[k] || []).forEach((r) => ok(inAll.has(r.city.name), `rankings-all.${k} 漏了榜上城市：${r.city.name}`));
+  });
+  ok(a.computedAt === d.computedAt || Math.abs(a.computedAt - d.computedAt) < 6e5,
+    'rankings-all 与 rankings 的 computedAt 相差过大（不是同一次跑批）');
+}
 
 if (fails.length) {
   console.error(`✗ 霞榜数据契约不通过（${fails.length} 项）：`);
