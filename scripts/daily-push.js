@@ -432,7 +432,7 @@ function render(res, opt, ens) {
   lines.push('- 要同时满足：中高云幕布 40–80%、太阳方向上游少云（缺口）、低云少——缺一项就基本没戏');
   lines.push('- AOD <0.3 通透；>0.6 发灰压暗');
   lines.push('');
-  lines.push(`_数据：Open-Meteo 四模式集合 + CAMS 气溶胶 ｜ 算法：sunset-glow 霞分 v2 ｜ 每天 15:00 推送_`);
+  lines.push(`_数据：Open-Meteo 四模式集合 + CAMS 气溶胶 ｜ 算法：sunset-glow 霞分 v2 ｜ 每天 15:17 推送_`);
 
   return lines.join('\n');
 }
