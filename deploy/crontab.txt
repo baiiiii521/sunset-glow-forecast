@@ -26,3 +26,8 @@
 # ========== 站点机（/var/www/glow，UTC+7）==========
 # 2026-10-24 起站点机不跑任何 Open-Meteo 取数任务。
 # 仅保留 nginx：静态文件 + /om/ 缓存反向代理（配置见 deploy/nginx-glow-cache.conf）。
+
+# ========== 华为云 hw（1.92.67.25，UTC+8，替补，2026-10-25）==========
+# 角色① 备用出口 relay：glow-om-relay.service（不占 cron，见 OPS.local.md「备用出口」节）
+# 角色② 看门狗兜底（防算力机整机宕机）：主站榜单过期>26h / 快照过期>3h 时在本机补算并直推站点机
+*/30 * * * * flock -n /root/glow/.watch.lock /root/glow/failover.sh watch >> /root/glow/logs/failover.log 2>&1
